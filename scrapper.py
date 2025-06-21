@@ -27,3 +27,8 @@ async def main():
 
 with client:
     client.loop.run_until_complete(main())
+
+
+#check for new messages among channels, (all messages past a certain date and time, probably)
+#filter out which of these messages are actaully bids
+#you can filter out which of the messages belong to pieces of clothing

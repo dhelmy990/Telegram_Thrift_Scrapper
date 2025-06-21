@@ -1,0 +1,21 @@
+name: telegram-bidding-clothing-pipeline
+prefect-version: 2.14.0
+
+deployments:
+  - name: telegram-scraper
+    entrypoint: telegram_pipeline.py:telegram_bidding_clothing_pipeline
+    work_pool:
+      name: default
+      work_queue_name: null
+    schedule:
+      cron: "0 2 * * *"  # Run daily at 2 AM
+    parameters:
+      channels: ["edermelonzzzz"]
+      start_date: "2024-01-01"
+      save_media: true
+      output_file: "filtered_messages.json"
+    tags:
+      - telegram
+      - scraping
+      - clothing
+      - bidding 
