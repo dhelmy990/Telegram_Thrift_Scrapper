@@ -18,7 +18,7 @@ def last_used() -> datetime:
         last_seen = datetime.now()
     
     sgt_timezone = pytz.timezone('Asia/Singapore')
-
+    #save_time()
     return sgt_timezone.localize(last_seen)
 
 
