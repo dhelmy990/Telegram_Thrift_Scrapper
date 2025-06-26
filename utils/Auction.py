@@ -101,11 +101,13 @@ class FCFS(Post):
         """        Determines who is the first to claim the item.
             Returns the sender ID of the first message that replies to the root post.
         """
+        print(self.get_root, self.get_text)
+        
         async for reply in client.iter_messages(channel_username, reply_to=self.get_root()):
             cost = self.extract_offer(reply.text)
-            if reply.sender_id is not None and cost is not None:
-                return reply.sender_id, cost
-
+            return reply.sender_id, cost
+        return None, None
+            
 
 class Auction(Post):
     def __init__(self, root : int, items : list, sb, msg=None):

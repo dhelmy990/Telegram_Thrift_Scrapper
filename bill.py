@@ -1,6 +1,7 @@
 from telethon import TelegramClient, events
 from config.secrets import t_api, t_hash, channel_username
 from telethon.tl.types import InputMessagesFilterPhotos
+from telethon.errors.rpcerrorlist import MsgIdInvalidError
 from utils.collect_utils import last_used, save_time
 from utils.Auction import *
 import json
@@ -26,8 +27,8 @@ async def gather_posts(since) -> list[Post]:
     cluster = [] #of working images
 
     async for msg in client.iter_messages(channel_username, filter = InputMessagesFilterPhotos()):
-        if msg.date < since:
-            break
+        #if msg.date < since:
+            #break
 
         cluster.append(msg)
         if msg.text is not None:
@@ -39,13 +40,13 @@ async def gather_posts(since) -> list[Post]:
 
 async def close_posts(post_list: list[Post]):
     await client.start()
-    #i never thought leetcode would come in handy for this, but here we are
-    print(post_list)
-
     #debug lines
     for post in post_list:
         print('--'*20)
-        id, cost = await post.gavel(channel_username, client)
+        try: 
+            id, cost = await post.gavel(channel_username, client)
+        except(MsgIdInvalidError):
+            continue
 
         print(type(post), id)
         print(post.get_text())
