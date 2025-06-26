@@ -10,6 +10,14 @@ class Post(ABC):
     def gavel(self, channel_username, client) -> int:
         pass
 
+    @abstractmethod
+    def get_text() -> str:
+        pass
+
+    @abstractmethod
+    def get_original_price(self) -> int:
+        pass
+
     @staticmethod
     def Factory(msg: int, cluster: list): #TODO typecast the msg as wtv the object for msg is
         """
@@ -28,21 +36,23 @@ class Post(ABC):
                 return Auction(
                     root=msg.id, 
                     items=cluster, 
-                    sb=cost
+                    sb=cost,
+                    msg=msg
                 )
             elif 'fcfs' in text:    
                 return FCFS(
                     root=msg.id, 
                     items=cluster, 
-                    sb=cost
+                    sb=cost, 
+                    msg=msg
                 )  
         return None
     
     @staticmethod
-    def extract_cost(text):
+    def extract_cost(text, from_reply = False):
         """
             This is a custom method to return the cost of the item from a given line of text.
-            But if it's specified as free, then it returns 0
+            But when specified as free, then it returns 0
         """
         if 'free' in text.lower():
             return 0
@@ -50,40 +60,84 @@ class Post(ABC):
         if number is None:
             return None
         return int(number.group())
+
     
 class FCFS(Post):
-    def __init__(self, root : int, items : list, sb):
+    def __init__(self, root : int, items : list, sb, msg):
         self.images = items
         self._root = root
         self.sb = sb
+        self.msg = msg
         #TODO figure out SB
         #TODO figure out FCFS oh you know what i realise its not 
         #TODO have SB and FCFS inherit from Post at the same time
 
+    def get_text(self) -> str:
+        return self.msg.text if self.msg.text is not None else ""
 
     def get_root(self) -> int:
         return self._root
-        
+    
+    def get_original_price(self) -> int:
+        """
+            Returns the original price of the item.
+            This is the SB price for FCFS.
+        """
+        return self.sb
+    
+
+    def extract_offer(self, text): #TODO make this a method taking only replies in
+        """
+           Extracts price from text. when they say "me" they're following the FCFS
+        """
+        if 'me' in text.lower():
+            return self.sb
+        number = re.search(r'\d+', text)
+        if number is None:
+            return None
+        return int(number.group())
+
     async def gavel(self, channel_username, client):
         """        Determines who is the first to claim the item.
             Returns the sender ID of the first message that replies to the root post.
         """
         async for reply in client.iter_messages(channel_username, reply_to=self.get_root()):
-            cost = Post.extract_cost(reply.text)
+            cost = self.extract_offer(reply.text)
             if reply.sender_id is not None and cost is not None:
                 return reply.sender_id, cost
 
 
 class Auction(Post):
-    def __init__(self, root : int, items : list, sb):
+    def __init__(self, root : int, items : list, sb, msg=None):
         self.images = items
         self._root = root
         self.sb = sb
+        self.msg = msg
 
+    def get_text(self) -> str:
+        return self.msg.text if self.msg.text is not None else ""
 
     def get_root(self) -> int:
         return self._root
         
+    def get_original_price(self) -> int:
+        """
+            Returns the original price of the item.
+            This is the SB price for FCFS.
+        """
+        return self.sb
+    
+    def extract_offer(self, text): #TODO make this a method taking only replies in
+        """
+           Extracts price from text. when they say "me" they're following the FCFS
+        """
+        if 'sb' in text.lower():
+            return self.sb
+        number = re.search(r'\d+', text)
+        if number is None:
+            return None
+        return int(number.group())
+    
     async def gavel(self, channel_username, client):
         """
             Determines who is the highest bidder.
@@ -91,7 +145,7 @@ class Auction(Post):
         best_bid = 0
         best_bidder = None
         async for reply in client.iter_messages(channel_username, reply_to=self.get_root()):
-            offer = Post.extract_cost(reply.text)
+            offer = self.extract_offer(reply.text)
             if offer is None:
                 continue
             if offer > best_bid:

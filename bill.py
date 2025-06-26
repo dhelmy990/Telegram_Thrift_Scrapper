@@ -42,8 +42,17 @@ async def close_posts(post_list: list[Post]):
     #i never thought leetcode would come in handy for this, but here we are
     print(post_list)
 
+    #debug lines
     for post in post_list:
-        print(type(post), await post.gavel(channel_username, client))
+        print('--'*20)
+        id, cost = await post.gavel(channel_username, client)
+
+        print(type(post), id)
+        print(post.get_text())
+        print("Original Price:", post.get_original_price())
+        print("Current best:", cost)
+        print
+        print('--'*20)
          
         
 
