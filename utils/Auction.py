@@ -2,6 +2,17 @@ from abc import abstractmethod, ABC
 import re
 
 class Post(ABC):
+    def __init__(self):
+        self.best_buyer = None
+        self.offer = 0
+
+    def _set_buy_n_price_(self, b, o):
+        self.best_buyer = b
+        self.offer = o
+    
+    def offer_ready(self):
+        return (self.best_buyer is not None)
+        
     @abstractmethod
     def get_root(self) -> int:
         pass
@@ -68,6 +79,7 @@ class FCFS(Post):
         self._root = root
         self.sb = sb
         self.msg = msg
+
         #TODO figure out SB
         #TODO figure out FCFS oh you know what i realise its not 
         #TODO have SB and FCFS inherit from Post at the same time
@@ -101,12 +113,13 @@ class FCFS(Post):
         """        Determines who is the first to claim the item.
             Returns the sender ID of the first message that replies to the root post.
         """
-        print(self.get_root, self.get_text)
+        #print(self.get_root, self.get_text), forgot what this line was for
         
         async for reply in client.iter_messages(channel_username, reply_to=self.get_root()):
             cost = self.extract_offer(reply.text)
-            return reply.sender_id, cost
-        return None, None
+            self._set_buy_n_price_(reply.sender_id, cost)
+            return
+        
             
 
 class Auction(Post):
@@ -154,4 +167,4 @@ class Auction(Post):
                 best_bid = offer
                 best_bidder = reply.sender_id
 
-        return best_bidder, best_bid
+        self._set_buy_n_price_(best_bidder, best_bid)
