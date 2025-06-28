@@ -5,6 +5,7 @@ class Post(ABC):
     def __init__(self):
         self.best_buyer = None
         self.offer = 0
+        self.predicted_price = -1 #dummy value for now
 
     def _set_buy_n_price_(self, b, o):
         self.best_buyer = b
