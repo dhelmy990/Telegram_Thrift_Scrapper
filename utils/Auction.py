@@ -7,6 +7,14 @@ class Post(ABC):
         self.offer = 0
         self.predicted_price = -1 #dummy value for now
 
+    def get_all_images(self):
+        give = []
+        print(len(self.items))
+        for each in self.items:
+            give.append(each.media)
+        return give
+
+
     def _set_buy_n_price_(self, b, o):
         self.best_buyer = b
         self.offer = o
@@ -40,6 +48,7 @@ class Post(ABC):
         It also has the responsibility of extracting the cost of the FCFS or the  from the text.
         """
         texts = msg.text.lower().split('\n')
+        print(len(cluster))
         for text in texts:
             cost = Post.extract_cost(text)
             if cost is None:
@@ -76,7 +85,8 @@ class Post(ABC):
     
 class FCFS(Post):
     def __init__(self, root : int, items : list, sb, msg):
-        self.images = items
+        super().__init__()
+        self.items = items
         self._root = root
         self.sb = sb
         self.msg = msg
@@ -125,7 +135,8 @@ class FCFS(Post):
 
 class Auction(Post):
     def __init__(self, root : int, items : list, sb, msg=None):
-        self.images = items
+        super().__init__()
+        self.items = items
         self._root = root
         self.sb = sb
         self.msg = msg

@@ -1,5 +1,6 @@
 from telethon import TelegramClient, events
-from config.secrets import t_api, t_hash, channel_username
+from config.secrets import t_api, t_hash, channel_username, mailing_cost, test_id, bill_text
+from collections import defaultdict
 from telethon.tl.types import InputMessagesFilterPhotos
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
 from utils.collect_utils import last_used, save_time
@@ -21,18 +22,19 @@ async def gather_posts(since) -> dict[int, Post]:
     """
 
     #TODO TOGGLE THIS OFF LATER:
-    since = since - timedelta(hours=40) #change this to the time you want to gather auctions from
+    since = since - timedelta(hours=120) #change this to the time you want to gather auctions from
 
     posts = {} #
     cluster = [] #of working images
 
     async for msg in client.iter_messages(channel_username, filter = InputMessagesFilterPhotos()):
-        #if msg.date < since:
-            #break
+        if msg.date < since:
+            break
 
         cluster.append(msg)
         if msg.text is not None:
             res = Post.Factory(msg, cluster)
+            cluster = []
             if res is None: continue
             if posts.get(res.get_root) is not None:
                 raise Exception #this would be a major problem..
@@ -49,18 +51,20 @@ async def gather_older_posts() -> dict[int, Post]:
     """
 
     #TODO: later, you can comment out the below and implement
+    #once we get to this part, claude suggests: message = await client.get_messages(chat_entity, ids=message_id)
     return {}
 
 
-async def collate_posts(post_dict: dict[int, Post], debug = False) -> list[Post]:
+async def collate_posts(post_dict: dict[int, Post], debug = False):
     """
         For each post, we are finding the best buyer and updating their internal representations
         As a return type, it must also have the responsibility of returning posts which contain no poster
     """
     await client.start()
     
-    new_unmarked_posts = [] #i think we can take this as an id?
-    
+
+    new_unmarked_posts = [] #we use this as a list of ids
+    id_purchases_dict = defaultdict(lambda : list()) #k,v is tele_id,relevant_post. So are simply reformatting to go from the buyers to their post 
     
     for post in post_dict.values():
         print('--'*20)
@@ -71,6 +75,9 @@ async def collate_posts(post_dict: dict[int, Post], debug = False) -> list[Post]
 
         if not post.offer_ready():
             new_unmarked_posts.append(post)
+            continue
+        else:
+            id_purchases_dict[post.best_buyer].append(post)
             
         if debug:
             print(type(post), post.best_buyer)
@@ -79,13 +86,27 @@ async def collate_posts(post_dict: dict[int, Post], debug = False) -> list[Post]
             print("Current best:", post.offer)
             print("Offered by:"), 
             print('--'*20)
+
+    return id_purchases_dict, new_unmarked_posts
         
 
 def some_db_func(post):
     pass
 
-    
-         
+
+
+
+async def send_order(buyer_to_post : dict[int, Post]):
+    for id, list_of_posts in buyer_to_post.items():
+        id = test_id
+        working_total = mailing_cost
+
+        for post in list_of_posts:
+            working_total += post.offer
+            await client.send_file('me', post.get_all_images(), caption = str(post.offer))
+        
+        
+        await client.send_message(id, bill_text.format(working_total))
         
 
 
@@ -95,16 +116,19 @@ async def main():
     NEW_post_list = await gather_posts(since=last_used())
     OLD_post_list = await gather_older_posts()
     post_list = {**NEW_post_list, **OLD_post_list}
-    #TODO change the return type to dict instead? so that we can union the two together
-    #TODO implement a database allowing you to get past posts that have no order
-    #claude suggests: message = await client.get_messages(chat_entity, ids=message_id)
+    
 
-    still_untouched_posts = await collate_posts(post_list, debug = True) 
-    #remove_from_db(OLD_post_list - still_untouched_posts)
-    #so basically i want to do something like this lah
-    #wah. This is actually q hard sia
-    #is that what i've been doing by reading documentation this entire time? working within a system of very intricate parts so as to maximise extensibility?
-    #anyway, given a list of posts with best buyers, i am now in the position to calculate how much each buyer owns
+    #NOTE: the functions main purpose is to _____, but it also can return all posts that have yet to have been touched
+    buyer_to_post , still_untouched_posts = await collate_posts(post_list, debug = True) 
+    #TODO eventually, we add still_untouched_posts to add to a database
+    await send_order(buyer_to_post)
+
+
+
+    
+
+
+    
     
 
     
