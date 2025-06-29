@@ -5,6 +5,7 @@ from telethon.tl.types import InputMessagesFilterPhotos
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
 from utils.collect_utils import last_used, save_time
 from utils.Auction import *
+from db import *
 import json
 import os
 import sys
@@ -52,18 +53,35 @@ async def gather_older_posts() -> dict[int, Post]:
 
     #TODO: later, you can comment out the below and implement
     #once we get to this part, claude suggests: message = await client.get_messages(chat_entity, ids=message_id)
-    return {}
+
+    this_dict = {} #key is the root, and values are the
+
+    db.init_undone_bid()
+    old_roots = db.get_all_unique_rootids()
+    for root in old_roots:
+        cluster = db.get_messages_by_root(root)
+        print(cluster)
+        this_dict[root] = Post.Factory(cluster)
+
+    return this_dict
 
 
-async def collate_posts(post_dict: dict[int, Post], debug = False):
+async def sieve_posts(post_dict: dict[int, Post], debug = False):
     """
+        3 items returned, in this order
+        1. A dict with keys of buyer id, and a List of the posts they purchased as the value
+        2. The post of those newly purchased
+        3. The post of those that still remain unpurchased
+
+        (Internal logic)
         For each post, we are finding the best buyer and updating their internal representations
         As a return type, it must also have the responsibility of returning posts which contain no poster
     """
     await client.start()
     
-
-    new_unmarked_posts = [] #we use this as a list of ids
+    no_buy  = []
+    have_buy = []
+     
     id_purchases_dict = defaultdict(lambda : list()) #k,v is tele_id,relevant_post. So are simply reformatting to go from the buyers to their post 
     
     for post in post_dict.values():
@@ -71,14 +89,17 @@ async def collate_posts(post_dict: dict[int, Post], debug = False):
         try: 
             await post.gavel(channel_username, client)
         except(MsgIdInvalidError): #this is an edge case that occurs if the readme.md is not followed carefully and comments are turned off
+            #TODO if this error occurs, simply delete. For now i don't really want to think about this yet
             continue
 
         if not post.offer_ready():
-            new_unmarked_posts.append(post)
+            no_buy.append(post)
             continue
         else:
+            have_buy.append(post)
             id_purchases_dict[post.best_buyer].append(post)
             
+             
         if debug:
             print(type(post), post.best_buyer)
             print(post.get_text())
@@ -87,11 +108,8 @@ async def collate_posts(post_dict: dict[int, Post], debug = False):
             print("Offered by:"), 
             print('--'*20)
 
-    return id_purchases_dict, new_unmarked_posts
-        
-
-def some_db_func(post):
-    pass
+    return id_purchases_dict, have_buy, no_buy
+    
 
 
 
@@ -113,28 +131,38 @@ async def send_order(buyer_to_post : dict[int, Post]):
 
 async def main():
     await client.start()
-    NEW_post_list = await gather_posts(since=last_used())
+
+    #deal with the old first
     OLD_post_list = await gather_older_posts()
-    post_list = {**NEW_post_list, **OLD_post_list}
+    buyer_to_post , have_bids, no_bids = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
+    #remove those with bids
     
 
-    #NOTE: the functions main purpose is to _____, but it also can return all posts that have yet to have been touched
-    buyer_to_post , still_untouched_posts = await collate_posts(post_list, debug = True) 
-    #TODO eventually, we add still_untouched_posts to add to a database
+    #deal with the new now
+    NEW_post_list = await gather_posts(since=last_used())
+    more_buyer_to_post , have_bids, no_bids = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
+    #add those with no bids
+
+    #well now we have bigger dict. Ahaha. Ha.
+    buyer_to_post.update(more_buyer_to_post)
+
+
+    
+    
+    
+
+
+    #TODO we still want to add the still_untouched_posts to a database
     await send_order(buyer_to_post)
 
 
+    
+    
+if __name__ == 'main':
+    with client:
+        client.loop.run_until_complete(main())
 
+    
     
 
 
-    
-    
-
-    
-    
-
-    
-
-with client:
-    client.loop.run_until_complete(main())
