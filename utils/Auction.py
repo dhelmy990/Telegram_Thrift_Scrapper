@@ -5,11 +5,11 @@ class Post(ABC):
     def __init__(self):
         self.best_buyer = None
         self.offer = 0
-        self.predicted_price = -1 #dummy value for now
+        self.predicted_price = -float('inf') #dummy value for now. All must go!
 
     def get_all_images(self):
         give = []
-        print(len(self.items))
+        #print(len(self.items))
         for each in self.items:
             give.append(each.media)
         return give
@@ -20,7 +20,9 @@ class Post(ABC):
         self.offer = o
     
     def offer_ready(self):
-        return (self.best_buyer is not None)
+        #note for the time being, the second of these two terms returns True in all cases
+        return (self.best_buyer is not None and self.offer > self.predicted_price)
+    
         
     @abstractmethod
     def get_root(self) -> int:
