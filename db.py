@@ -1,7 +1,6 @@
+import os
 import sqlite3
 from typing import Optional, List, Tuple
-
-
 
 def init_undone_bid(db_path: str = "db/undone_bid.db") -> None:
     """
@@ -10,7 +9,11 @@ def init_undone_bid(db_path: str = "db/undone_bid.db") -> None:
     Args:
         db_path: Path to the database file
     """
-    conn = sqlite3.connect(db_path)
+    try:
+        conn = sqlite3.connect(db_path)
+    except(sqlite3.OperationalError):
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     # Create table with teleid and rootid
@@ -136,5 +139,40 @@ def get_all_unique_rootids(db_path: str = "db/undone_bid.db") -> List[int]:
     conn.close()
     
     return results
+
+def get_all_ORDERED(db_path: str = "db/undone_bid.db") -> List[int]:
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT DISTINCT teleid FROM undone_bid
+        ORDER BY teleid ASC
+    ''')
+    
+    results = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    
+    return results
+
+def del_all_with(root, db_path: str = "db/undone_bid.db") -> List[int]:
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    if not isinstance(root, list):
+        roots = [root]
+    
+
+    for root in roots:
+
+        cursor.execute('''
+            SELECT DISTINCT teleid FROM undone_bid
+            ORDER BY teleid ASC
+        ''')
+    
+    results = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    
+    return results
+
 
     

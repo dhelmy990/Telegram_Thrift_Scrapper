@@ -9,6 +9,7 @@ import db
 import json
 import os
 import sys
+import joblib
 from datetime import timedelta
 from client import client
 
@@ -52,7 +53,6 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
         For each post, we are finding the best buyer and updating their internal representations
         As a return type, it must also have the responsibility of returning posts which contain no poster
     """
-    await client.start()
     
     no_buy  = []
     have_buy = []
@@ -66,13 +66,12 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
         except(MsgIdInvalidError): #this is an edge case that occurs if the readme.md is not followed carefully and comments are turned off
             #TODO if this error occurs, simply delete. For now i don't really want to think about this yet
             continue
-
-        if not post.offer_ready():
+        except(KeyError): #theres no best buyer
             no_buy.append(post)
             continue
-        else:
-            have_buy.append(post)
-            id_purchases_dict[post.best_buyer].append(post)
+
+        have_buy.append(post)
+        id_purchases_dict[post.best_buyer].append(post)
             
              
         if debug:
@@ -102,7 +101,6 @@ async def main():
     """
         I AM USING THIS AS A DEBUG FUNCTION. ACTUAL UTILITY FUNCTION IS BELOW.
     """
-    await client.start()
 
     #deal with the old first
     OLD_post_dict = await gather_posts() #no param means get all the old ones
@@ -117,12 +115,16 @@ async def main():
     #well now we have bigger dict. Ahaha. Ha.
     buyer_to_post.update(more_buyer_to_post)
 
+
     #TODO of course, we still want to add the still_untouched_posts to a database
 
     await send_order(buyer_to_post)
 
+
+
 async def active_posts():
-    await client.start()
+
+    
 
     #deal with the old first
     OLD_post_dict = await gather_posts() #no param means get all the old ones
@@ -136,7 +138,18 @@ async def active_posts():
 
     #well now we have bigger dict. Ahaha. Ha.
     buyer_to_post.update(more_buyer_to_post)
-    return buyer_to_post, no_bids + no_bids_2
+    no_bids += no_bids_2
+    
+
+    #Cache all images. This is a bad solution.
+    for post in no_bids:
+        asyncio.create_task(post.fletify_image())
+    for posts in buyer_to_post.values():
+        for post in posts:
+            asyncio.create_task(post.fletify_image())
+ 
+    ans = buyer_to_post, no_bids
+    return ans
 
     #TODO of course, we still want to add the still_untouched_posts to a database
     #TODO await send_order(buyer_to_post), but maybe i dont call this from here sia...hm...

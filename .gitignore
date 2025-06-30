@@ -1,6 +1,8 @@
 config/secrets.py
 config/last_login.txt
 media/
+cache/
 *.db
 *.sqlite
 *.sqlite3
+

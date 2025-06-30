@@ -1,5 +1,8 @@
 from abc import abstractmethod, ABC
 import re
+import base64
+import asyncio
+import os
 from client import client, get_username
 
 
@@ -15,19 +18,38 @@ class Post(ABC):
         for each in self.items:
             give.append(each.media)
         return give
+    
+    async def fletify_image(self):
+        path = 'media/'+ str(self.get_root())
+        if not os.path.exists(path):
+            get = self.get_all_images()
+            get = get[0]
+            raw_bytes = await client.download_media(get, file=bytes)
+            with open(path, 'wb') as f:
+                f.write(raw_bytes) 
+        
+    
+    def flet_image(self):
+        path = 'media/'+ str(self.get_root())
+        with open(path, 'rb') as r:
+            raw_bytes = r.read()
+        return base64.b64encode(raw_bytes).decode()
+    
+        
+        
+
+
 
     async def _set_buy_n_price_(self, b, o):
         self.best_buyer = b
         self.offer = o
+        self.best_buyer_name = await self.get_best_buyer()
 
     async def get_best_buyer(self):
         if not self.offer_ready():
             raise KeyError
         return await get_username(self.best_buyer)
         
-
-
-    
     
     
     def offer_ready(self):

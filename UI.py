@@ -15,8 +15,10 @@ ORDER_STAGES = [
 # State: places the orders in each stage
 class OrderState:
     def __init__(self):
-        claimed_dict, unclaimed_list = asyncio.run(bill.active_posts())
         self.orders = defaultdict(list)
+        
+    async def load(self):
+        claimed_dict, unclaimed_list = await bill.active_posts()
         self.orders[ORDER_STAGES[0]] = claimed_dict
 
     def move_order(self, order_id, from_stage, to_stage):
@@ -48,19 +50,17 @@ class UnbiddedDraggable(ft.Draggable):
 
 class BiddedDraggable(ft.Draggable):
     def __init__(self, id_to_post: tuple, on_drag_start=None, **kwargs):
-        self.buyer_username = asyncio.run(get_username(id_to_post[0]))
+        self.buyer_username = id_to_post[1][0].best_buyer_name
         self.posts = id_to_post[1]
 
         # Subcards for each post
         subcards = []
         for post in self.posts:
-            images = post.get_all_images()
-            image_widget = ft.Image(src=images[0]) if images else ft.Text("No image")
             image_widget = ft.Image(
-                src=f"https://picsum.photos/200/200?{i}",
+                src_base64 = post.flet_image(),
                 width=200,
                 height=200,
-                fit=ft.ImageFit.NONE,
+                fit=ft.ImageFit.COVER,
                 repeat=ft.ImageRepeat.NO_REPEAT,
                 border_radius=ft.border_radius.all(10),
             )
@@ -144,11 +144,13 @@ def create_column(stage, orders, on_accept, on_update=None):
         margin=5,
     )
 
-def main(page: ft.Page):
+async def main(page: ft.Page):
+    await client.start()
     page.title = "Order Tracker Workstation"
     page.bgcolor = ft.Colors.SURFACE
     page.scroll = ft.ScrollMode.AUTO
     state = OrderState()
+    await state.load()
 
     def refresh():
         # Rebuild the UI with the current state
