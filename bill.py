@@ -3,9 +3,9 @@ from config.secrets import t_api, t_hash, channel_username, mailing_cost, test_i
 from collections import defaultdict
 from telethon.tl.types import InputMessagesFilterPhotos
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
-from utils.collect_utils import last_used, save_time
+from utils.collect_utils import last_used, save_time, iter_specific_messages, dt_min
 from utils.Auction import *
-from db import *
+import db
 import json
 import os
 import sys
@@ -17,21 +17,25 @@ save_dir = 'media'  # Directory to save downloaded files
 
 client = TelegramClient('anon_session', api_id, api_hash)
 
-async def gather_posts(since) -> dict[int, Post]:
+async def gather_posts(since = None) -> dict[int, Post]:
     """
         If given a certain last used time, this function can gather all image collections with 'sb' in the text.
     """
 
-    #TODO TOGGLE THIS OFF LATER:
-    since = since - timedelta(hours=120) #change this to the time you want to gather auctions from
+    if since is not None:
+        since = since - timedelta(hours=120) #change this to the time you want to gather auctions from
+        iterator = client.iter_messages(channel_username, filter = InputMessagesFilterPhotos())
+    else:
+        since = dt_min()
+        db.init_undone_bid()
+        iterator = iter_specific_messages(client, channel_username, message_ids = db.get_all_ORDERED()) 
 
-    posts = {} #
+    posts = {} 
     cluster = [] #of working images
 
-    async for msg in client.iter_messages(channel_username, filter = InputMessagesFilterPhotos()):
+    async for msg in iterator:
         if msg.date < since:
             break
-
         cluster.append(msg)
         if msg.text is not None:
             res = Post.Factory(msg, cluster)
@@ -40,38 +44,14 @@ async def gather_posts(since) -> dict[int, Post]:
             if posts.get(res.get_root) is not None:
                 raise Exception #this would be a major problem..
             posts[res.get_root] = res
-
     return posts
-
-
-
-
-async def gather_older_posts() -> dict[int, Post]:
-    """
-        Using a database, will simply fetch all of the posts from the past that have not gained any buyers
-    """
-
-    #TODO: later, you can comment out the below and implement
-    #once we get to this part, claude suggests: message = await client.get_messages(chat_entity, ids=message_id)
-
-    this_dict = {} #key is the root, and values are the
-
-    db.init_undone_bid()
-    old_roots = db.get_all_unique_rootids()
-    for root in old_roots:
-        cluster = db.get_messages_by_root(root)
-        print(cluster)
-        this_dict[root] = Post.Factory(cluster)
-
-    return this_dict
-
 
 async def sieve_posts(post_dict: dict[int, Post], debug = False):
     """
         3 items returned, in this order
         1. A dict with keys of buyer id, and a List of the posts they purchased as the value
-        2. The post of those newly purchased
-        3. The post of those that still remain unpurchased
+        2. A list of posts of those newly purchased
+        3. A list of posts of those that still remain unpurchased
 
         (Internal logic)
         For each post, we are finding the best buyer and updating their internal representations
@@ -105,14 +85,11 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
             print(post.get_text())
             print("Original Price:", post.get_original_price())
             print("Current best:", post.offer)
-            print("Offered by:"), 
+            print("Offered by:", post.get_best_buyer()), 
             print('--'*20)
 
     return id_purchases_dict, have_buy, no_buy
     
-
-
-
 
 async def send_order(buyer_to_post : dict[int, Post]):
     for id, list_of_posts in buyer_to_post.items():
@@ -125,19 +102,15 @@ async def send_order(buyer_to_post : dict[int, Post]):
         
         
         await client.send_message(id, bill_text.format(working_total))
-        
-
-
 
 async def main():
     await client.start()
 
     #deal with the old first
-    OLD_post_list = await gather_older_posts()
-    buyer_to_post , have_bids, no_bids = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
+    OLD_post_dict = await gather_posts() #no param means get all the old ones
+    buyer_to_post , have_bids, no_bids = await sieve_posts(OLD_post_dict, debug = True) #the latter two are lists of posts
     #remove those with bids
     
-
     #deal with the new now
     NEW_post_list = await gather_posts(since=last_used())
     more_buyer_to_post , have_bids, no_bids = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
@@ -146,19 +119,12 @@ async def main():
     #well now we have bigger dict. Ahaha. Ha.
     buyer_to_post.update(more_buyer_to_post)
 
+    #TODO of course, we still want to add the still_untouched_posts to a database
 
-    
-    
-    
-
-
-    #TODO we still want to add the still_untouched_posts to a database
     await send_order(buyer_to_post)
 
-
     
-    
-if __name__ == 'main':
+if __name__ == '__main__':
     with client:
         client.loop.run_until_complete(main())
 

@@ -14,14 +14,23 @@ class Post(ABC):
             give.append(each.media)
         return give
 
-
-    def _set_buy_n_price_(self, b, o):
+    async def _set_buy_n_price_(self, b, o, client):
         self.best_buyer = b
         self.offer = o
+        if b is not None:
+            _ = await client.get_entity(b)
+            self.buyer_name = _.username
+    
+    
     
     def offer_ready(self):
         #note for the time being, the second of these two terms returns True in all cases
         return (self.best_buyer is not None and self.offer > self.predicted_price)
+    
+    def get_best_buyer(self):
+        if self.best_buyer is None:
+            return "None Yet..."
+        return self.buyer_name
     
         
     @abstractmethod
@@ -130,7 +139,7 @@ class FCFS(Post):
         
         async for reply in client.iter_messages(channel_username, reply_to=self.get_root()):
             cost = self.extract_offer(reply.text)
-            self._set_buy_n_price_(reply.sender_id, cost)
+            await self._set_buy_n_price_(reply.sender_id, cost, client)
             return
         
             
@@ -181,4 +190,4 @@ class Auction(Post):
                 best_bid = offer
                 best_bidder = reply.sender_id
 
-        self._set_buy_n_price_(best_bidder, best_bid)
+        await self._set_buy_n_price_(best_bidder, best_bid, client)
