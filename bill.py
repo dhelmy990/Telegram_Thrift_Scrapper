@@ -10,12 +10,7 @@ import json
 import os
 import sys
 from datetime import timedelta
-
-api_id = t_api           # int
-api_hash = t_hash     # str
-save_dir = 'media'  # Directory to save downloaded files
-
-client = TelegramClient('anon_session', api_id, api_hash)
+from client import client
 
 async def gather_posts(since = None) -> dict[int, Post]:
     """
@@ -85,8 +80,9 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
             print(post.get_text())
             print("Original Price:", post.get_original_price())
             print("Current best:", post.offer)
-            print("Offered by:", post.get_best_buyer()), 
+            print("Offered by:", await post.get_best_buyer()), 
             print('--'*20)
+            #also use post.get_all_images()
 
     return id_purchases_dict, have_buy, no_buy
     
@@ -104,6 +100,9 @@ async def send_order(buyer_to_post : dict[int, Post]):
         await client.send_message(id, bill_text.format(working_total))
 
 async def main():
+    """
+        I AM USING THIS AS A DEBUG FUNCTION. ACTUAL UTILITY FUNCTION IS BELOW.
+    """
     await client.start()
 
     #deal with the old first
@@ -122,6 +121,26 @@ async def main():
     #TODO of course, we still want to add the still_untouched_posts to a database
 
     await send_order(buyer_to_post)
+
+async def active_posts():
+    await client.start()
+
+    #deal with the old first
+    OLD_post_dict = await gather_posts() #no param means get all the old ones
+    buyer_to_post , have_bids, no_bids = await sieve_posts(OLD_post_dict, debug = True) #the latter two are lists of posts
+    #remove those with bids
+    
+    #deal with the new now
+    NEW_post_list = await gather_posts(since=last_used())
+    more_buyer_to_post , have_bids, no_bids_2 = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
+    #add those with no bids. I called it no_bids_2 becasuse of the poster to seller UI problem.
+
+    #well now we have bigger dict. Ahaha. Ha.
+    buyer_to_post.update(more_buyer_to_post)
+    return buyer_to_post, no_bids + no_bids_2
+
+    #TODO of course, we still want to add the still_untouched_posts to a database
+    #TODO await send_order(buyer_to_post), but maybe i dont call this from here sia...hm...
 
     
 if __name__ == '__main__':

@@ -1,5 +1,7 @@
 from abc import abstractmethod, ABC
 import re
+from client import client
+
 
 class Post(ABC):
     def __init__(self):
@@ -14,24 +16,24 @@ class Post(ABC):
             give.append(each.media)
         return give
 
-    async def _set_buy_n_price_(self, b, o, client):
+    async def _set_buy_n_price_(self, b, o):
         self.best_buyer = b
         self.offer = o
-        if b is not None:
-            _ = await client.get_entity(b)
-            self.buyer_name = _.username
+
+    async def get_best_buyer(self):
+        if not self.offer_ready():
+            raise KeyError
+        user = await client.get_entity(self.best_buyer)
+        val = user.username
+        return val if val is not None else "[BUYER DID NOT SET]"
+
+
     
     
     
     def offer_ready(self):
         #note for the time being, the second of these two terms returns True in all cases
-        return (self.best_buyer is not None and self.offer > self.predicted_price)
-    
-    def get_best_buyer(self):
-        if self.best_buyer is None:
-            return "None Yet..."
-        return self.buyer_name
-    
+        return (self.best_buyer is not None and self.offer > self.predicted_price)    
         
     @abstractmethod
     def get_root(self) -> int:
@@ -139,7 +141,7 @@ class FCFS(Post):
         
         async for reply in client.iter_messages(channel_username, reply_to=self.get_root()):
             cost = self.extract_offer(reply.text)
-            await self._set_buy_n_price_(reply.sender_id, cost, client)
+            await self._set_buy_n_price_(reply.sender_id, cost)
             return
         
             
@@ -190,4 +192,4 @@ class Auction(Post):
                 best_bid = offer
                 best_bidder = reply.sender_id
 
-        await self._set_buy_n_price_(best_bidder, best_bid, client)
+        await self._set_buy_n_price_(best_bidder, best_bid)
