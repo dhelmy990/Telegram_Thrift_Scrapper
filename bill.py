@@ -96,7 +96,6 @@ async def send_order(buyer_to_post : dict[int, Post]):
             working_total += post.offer
             await client.send_file('me', post.get_all_images(), caption = str(post.offer))
         
-        
         await client.send_message(id, bill_text.format(working_total))
 
 async def main():

@@ -7,3 +7,8 @@ api_id = t_api           # int
 api_hash = t_hash     # str
 save_dir = 'media'  # Directory to save downloaded files
 client = TelegramClient('anon_session', api_id, api_hash)
+
+async def get_username(id : int):
+    user = await client.get_entity(id)
+    val = user.username
+    return val if val is not None else "[BUYER DID NOT SET]"

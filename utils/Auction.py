@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 import re
-from client import client
+from client import client, get_username
 
 
 class Post(ABC):
@@ -23,9 +23,8 @@ class Post(ABC):
     async def get_best_buyer(self):
         if not self.offer_ready():
             raise KeyError
-        user = await client.get_entity(self.best_buyer)
-        val = user.username
-        return val if val is not None else "[BUYER DID NOT SET]"
+        return await get_username(self.best_buyer)
+        
 
 
     
