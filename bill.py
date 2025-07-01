@@ -161,8 +161,9 @@ async def active_posts():
     #tasks.append(save_pickle(buyer_to_post, 'bought_dict'))
     #tasks.append(save_pickle(no_bids, 'unbought_dict'))
     await asyncio.gather(*tasks)
-    ans = buyer_to_post, no_bids
-    return ans
+    #no bids comes later
+    return [(k, v) for k, v in buyer_to_post.items()] + [(None, post) for post in no_bids]
+    
 
     #TODO of course, we still want to add the still_untouched_posts to a database
     #TODO await send_order(buyer_to_post), but maybe i dont call this from here sia...hm...

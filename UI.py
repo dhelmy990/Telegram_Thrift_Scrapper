@@ -1,5 +1,6 @@
 import flet as ft
 from utils.Auction import *
+from utils.UIutils import subcard, card
 import bill
 import asyncio
 from collections import defaultdict
@@ -18,8 +19,9 @@ class OrderState:
         self.orders = defaultdict(list)
         
     async def load(self):
-        claimed_dict, unclaimed_list = await bill.active_posts()
-        self.orders[ORDER_STAGES[0]] = claimed_dict
+        new_posts = await bill.active_posts()
+        for new in new_posts:
+            self.orders[ORDER_STAGES[0]].append(new)
 
     def move_order(self, order_id, from_stage, to_stage):
         for order in self.orders[from_stage]:
@@ -32,13 +34,14 @@ class OrderState:
 class PostDraggableFactory():
     @staticmethod
     def create(post_items):
-        if isinstance(post_items, dict):
-            return [BiddedDraggable(post_item) for post_item in post_items.items()]
+        if not isinstance(post_items, tuple):
+            raise Exception("Post items is not a tuple")
+        
+        if post_items[0] is None:
+            return UnbiddedDraggable(post_items[1])
         else:
-            return
-            print(type(post_items))
-            print(post_items)
-            raise SyntaxError()
+            return BiddedDraggable(post_items) 
+        
         
         
 class PostDraggableAborter():
@@ -46,7 +49,24 @@ class PostDraggableAborter():
 
 
 class UnbiddedDraggable(ft.Draggable):
-    pass
+    def __init__(self, post: Post, on_drag_start=None, **kwargs):
+        self.post = post
+        super().__init__(
+            group="orders",
+            data={"id": self.post.get_root(), "from_stage": "Active Bids"},
+            content=ft.Text(self.post.get_text()),
+        )
+
+        card_content = card(subcard(post))
+        super().__init__(
+            group="orders",
+            data={"id": self.post.get_root(), "from_stage": "Active Bids"},
+            content=card_content,
+            on_drag_start=on_drag_start,
+            **kwargs
+        )
+
+
 
 class BiddedDraggable(ft.Draggable):
     def __init__(self, id_to_post: tuple, on_drag_start=None, **kwargs):
@@ -56,47 +76,9 @@ class BiddedDraggable(ft.Draggable):
         # Subcards for each post
         subcards = []
         for post in self.posts:
-            image_widget = ft.Image(
-                src_base64 = post.flet_image(),
-                width=200,
-                height=200,
-                fit=ft.ImageFit.COVER,
-                repeat=ft.ImageRepeat.NO_REPEAT,
-                border_radius=ft.border_radius.all(10),
-            )
-            subcard = ft.Card(
-                content=ft.Container(
-                    content=ft.Column([
-                        image_widget,
-                        ft.Text(post.get_text()),
-                        ft.Text(f"Starting bid: {post.get_original_price()}", size=12),
-                        ft.Text(f"Current bid: {post.offer}", size=12),
-                    ], spacing=5),
-                    padding=10,
-                    border_radius=8,
-                ),
-                elevation=1,
-            )
-            subcards.append(subcard)
+            subcards.append(subcard(post))
 
-        card_content = ft.Card(
-            content=ft.Container(
-                content=ft.Column([
-                    ft.Row([
-                        ft.Container(
-                            content=ft.Text(f"@{self.buyer_username}", color=ft.Colors.PRIMARY, weight=ft.FontWeight.BOLD),
-                            padding=ft.padding.only(right=10),
-                        ),
-                        ft.Text("Bids", weight=ft.FontWeight.BOLD),
-                    ]),
-                    ft.ListView(subcards, height=200),
-                ], spacing=10),
-                padding=10,
-                bgcolor=ft.Colors.SURFACE,
-                border_radius=8,
-            ),
-            elevation=2,
-        )
+        card_content = card(subcards, ready = True, username = self.buyer_username)
 
         super().__init__(
             group="orders",
@@ -112,12 +94,16 @@ class BiddedDraggable(ft.Draggable):
 
 
 
-def create_column(stage, orders, on_accept, on_update=None):
+def create_column(stage, orders : list[tuple], on_accept, on_update=None):
     # Column header
-    header = ft.Text(stage, size=18, weight=ft.FontWeight.BOLD)
+    header = ft.Text(stage, size=18, weight=ft.FontWeight.BOLD, color = ft.Colors.WHITE)
     # Order cards
-    order_cards = PostDraggableFactory.create(orders)
-    #TODO check for unbought later
+
+    
+    order_cards = []
+    for order in orders:
+        order_cards.append(PostDraggableFactory.create(order))
+        #TODO check for unbought later
     
     # Drag target for dropping cards
     drag_target = ft.DragTarget(
@@ -169,8 +155,7 @@ async def main(page: ft.Page):
         # Row of columns
         def make_on_accept(stage):
             def on_accept(e):
-                """
-                """
+                
                 print('on accept')
                 data = e.data
                 if isinstance(data, str):
