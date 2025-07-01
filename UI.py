@@ -5,6 +5,7 @@ import bill
 import asyncio
 from collections import defaultdict
 from client import client, get_username
+import json
 
 ORDER_STAGES = [
     "Active Bids",
@@ -24,8 +25,17 @@ class OrderState:
             self.orders[ORDER_STAGES[0]].append(new)
 
     def move_order(self, order_id, from_stage, to_stage):
+        #TODO what did they give you fucking hashmaps for. This is O(n). You deserve your unemployment.
         for order in self.orders[from_stage]:
-            if order["id"] == order_id:
+            #this line identifies it based on the two cases: the id is a username, or the id is the root of that single post. 
+            #I promise, I will truly, never, ever engineer software in python again
+            #I was wrong. Java and JavaScript are actually pretty good languages.
+            #No one should ever have to write anything meant for a UI in this cursed fucking langauge where i can set what was formerly a dictionary to my custom class
+            if order[0] is None and order_id == order[1].get_root():
+                self.orders[from_stage].remove(order)
+                self.orders[to_stage].append(order)
+                return order
+            elif order_id == order[0]: 
                 self.orders[from_stage].remove(order)
                 self.orders[to_stage].append(order)
                 return order
@@ -91,7 +101,7 @@ def BiddedDraggable(id_to_post, on_drag_start=None, **kwargs):
     # Draggable overlay only on header
     overlay_draggable = ft.Draggable(
         group="orders",
-        data={"id": buyer_username, "from_stage": "Active Bids"},
+        data = {"id": buyer_username, "from_stage": "Active Bids"},
         content=ft.Container(
             width=card_width,
             height=header_height,
@@ -126,10 +136,24 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
     for order in orders:
         order_cards.append(PostDraggableFactory.create(order))
         #TODO check for unbought later
+    
+
     # Drag target for dropping cards
+    # If no cards present, content will be set to a plus sign
+    if len(order_cards) == 0:
+        content = ft.Container(
+            content=ft.Icon(ft.Icons.ADD, size=80, color=ft.Colors.GREY_600),
+            alignment=ft.alignment.center,
+            padding=20,
+            border=ft.border.all(2, ft.Colors.GREY_400),
+            border_radius=10,
+        )
+    else:
+        content = ft.Column(order_cards, spacing=10)
+
     drag_target = ft.DragTarget(
         group="orders",
-        content=ft.Column(order_cards, spacing=10),
+        content=content,
         on_accept=on_accept,
         on_will_accept=lambda e: True,
         on_leave=lambda e: None,
@@ -176,16 +200,14 @@ async def main(page: ft.Page):
         # Row of columns
         def make_on_accept(stage):
             def on_accept(e):
-                print('on accept')
+                e = page.get_control(e.src_id)
                 data = e.data
-                if isinstance(data, str):
-                    import json
-                    data = json.loads(data.replace("'", '"'))
                 order_id = data["id"]
                 from_stage = data["from_stage"]
                 if from_stage != stage:
-                    state.move_order(order_id, from_stage, stage)
-                    refresh()
+                    change = state.move_order(order_id, from_stage, stage)
+                    if change is not None:      
+                        refresh()
             return on_accept
 
         def on_update(e):

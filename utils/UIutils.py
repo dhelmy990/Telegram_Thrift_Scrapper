@@ -36,7 +36,6 @@ def card(subcards, ready = False, username = None):
         subcards = [subcards]
     
 
-
     card_content = ft.Card(
             content=ft.Container(
                 content=ft.Column([
