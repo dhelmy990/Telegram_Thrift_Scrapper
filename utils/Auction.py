@@ -237,3 +237,9 @@ class Auction(Post):
                 best_bidder = reply.sender_id
 
         await self._set_buy_n_price_(best_bidder, best_bid)
+
+    def load_best_buyer(self):
+        try:
+            return self.best_buyer_name
+        except:
+            return None

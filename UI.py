@@ -18,6 +18,14 @@ ORDER_STAGES = [
 class OrderState:
     def __init__(self):
         self.orders = defaultdict(list)
+
+
+    def change_stage(self, order, fro, to):
+        #change stage
+        self.orders[fro].remove(order)
+        self.orders[to].append(order)
+
+        #change data
         
     async def load(self):
         new_posts = await bill.active_posts()
@@ -26,31 +34,33 @@ class OrderState:
 
     def move_order(self, order_id, from_stage, to_stage):
         #TODO what did they give you fucking hashmaps for. This is O(n). You deserve your unemployment.
+        print(self.orders[from_stage])
         for order in self.orders[from_stage]:
             #this line identifies it based on the two cases: the id is a username, or the id is the root of that single post. 
             #I promise, I will truly, never, ever engineer software in python again
             #I was wrong. Java and JavaScript are actually pretty good languages.
             #No one should ever have to write anything meant for a UI in this cursed fucking langauge where i can set what was formerly a dictionary to my custom class
-            if order[0] is None and order_id == order[1].get_root():
-                self.orders[from_stage].remove(order)
-                self.orders[to_stage].append(order)
-                return order
-            elif order_id == order[0]: 
-                self.orders[from_stage].remove(order)
-                self.orders[to_stage].append(order)
-                return order
+            print(order, from_stage)
+            if order[0] is None:
+                if order_id == order[1].get_root():
+                    self.change_stage(order, from_stage, to_stage)
+                    return order
+            else:
+                if order_id == order[1][0].load_best_buyer(): 
+                    self.change_stage(order, from_stage, to_stage)
+                    return order
         return None
      
 class PostDraggableFactory():
     @staticmethod
-    def create(post_items):
+    def create(post_items, stage):
         if not isinstance(post_items, tuple):
             raise Exception("Post items is not a tuple")
         
         if post_items[0] is None:
             return UnbiddedDraggable(post_items[1])
         else:
-            return BiddedDraggable(post_items) 
+            return BiddedDraggable(post_items, stage) 
         
         
         
@@ -89,7 +99,7 @@ def UnbiddedDraggable(post: Post, on_drag_start=None, **kwargs):
         overlay_draggable,
     ], width=card_width)
 
-def BiddedDraggable(id_to_post, on_drag_start=None, **kwargs):
+def BiddedDraggable(id_to_post, stage, on_drag_start=None, **kwargs):
     buyer_username = id_to_post[1][0].best_buyer_name
     posts = id_to_post[1]
     subcards = [subcard(post) for post in posts]
@@ -101,7 +111,7 @@ def BiddedDraggable(id_to_post, on_drag_start=None, **kwargs):
     # Draggable overlay only on header
     overlay_draggable = ft.Draggable(
         group="orders",
-        data = {"id": buyer_username, "from_stage": "Active Bids"},
+        data = {"id": buyer_username, "from_stage": stage},
         content=ft.Container(
             width=card_width,
             height=header_height,
@@ -134,7 +144,7 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
     # Order cards
     order_cards = []
     for order in orders:
-        order_cards.append(PostDraggableFactory.create(order))
+        order_cards.append(PostDraggableFactory.create(order, stage))
         #TODO check for unbought later
     
 
@@ -204,9 +214,14 @@ async def main(page: ft.Page):
                 data = e.data
                 order_id = data["id"]
                 from_stage = data["from_stage"]
+                print(e.data)
+                
                 if from_stage != stage:
                     change = state.move_order(order_id, from_stage, stage)
-                    if change is not None:      
+                    e.data["from_stage"] = stage
+                    
+                    if change is not None: 
+                        print(str(e.data) + "again")     
                         refresh()
             return on_accept
 
