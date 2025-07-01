@@ -46,7 +46,7 @@ def card(subcards, ready = False, username = None):
                             padding=ft.padding.only(right=10),
                         )
                     ]),
-                    ft.ListView(subcards, height=200),
+                    ft.ListView(subcards, height=200, auto_scroll = False),
                 ], spacing=10),
                 padding=10,
                 bgcolor=ft.Colors.SURFACE,
@@ -55,3 +55,5 @@ def card(subcards, ready = False, username = None):
             elevation=2,
         )
     return card_content
+
+

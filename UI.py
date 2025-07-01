@@ -47,64 +47,85 @@ class PostDraggableFactory():
 class PostDraggableAborter():
     pass
 
+def UnbiddedDraggable(post: Post, on_drag_start=None, **kwargs):
+    # Use the same card layout as before, but with a header-only draggable overlay
+    card_width = 270
+    header_height = 50
+    # Build the card (not ready, no username)
+    card_content = card(subcard(post), ready=False, username=None)
 
-class UnbiddedDraggable(ft.Draggable):
-    def __init__(self, post: Post, on_drag_start=None, **kwargs):
-        self.post = post
-        super().__init__(
-            group="orders",
-            data={"id": self.post.get_root(), "from_stage": "Active Bids"},
-            content=ft.Text(self.post.get_text()),
-        )
+    overlay_draggable = ft.Draggable(
+        group="orders",
+        data={"id": post.get_root(), "from_stage": "Active Bids"},
+        content=ft.Container(
+            width=card_width,
+            height=header_height,
+            bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.BLUE),
+        ),
+        content_feedback=ft.Container(
+            width=card_width,
+            height=header_height,
+            bgcolor=ft.Colors.BLUE,
+            content=ft.Text("Still bidding", color=ft.Colors.WHITE, size=16),
+            border_radius=8,
+            alignment=ft.alignment.center,
+        ),
+        on_drag_start=on_drag_start,
+        **kwargs
+    )
 
-        card_content = card(subcard(post))
-        super().__init__(
-            group="orders",
-            data={"id": self.post.get_root(), "from_stage": "Active Bids"},
-            content=card_content,
-            on_drag_start=on_drag_start,
-            **kwargs
-        )
+    return ft.Stack([
+        card_content,
+        overlay_draggable,
+    ], width=card_width)
 
+def BiddedDraggable(id_to_post, on_drag_start=None, **kwargs):
+    buyer_username = id_to_post[1][0].best_buyer_name
+    posts = id_to_post[1]
+    subcards = [subcard(post) for post in posts]
+    card_content = card(subcards, True, buyer_username)
 
+    header_height = 50
+    card_width = 270
 
-class BiddedDraggable(ft.Draggable):
-    def __init__(self, id_to_post: tuple, on_drag_start=None, **kwargs):
-        self.buyer_username = id_to_post[1][0].best_buyer_name
-        self.posts = id_to_post[1]
+    # Draggable overlay only on header
+    overlay_draggable = ft.Draggable(
+        group="orders",
+        data={"id": buyer_username, "from_stage": "Active Bids"},
+        content=ft.Container(
+            width=card_width,
+            height=header_height,
+            bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.BLUE),
+        ),
+        content_feedback=ft.Container(
+            width=card_width,
+            height=header_height,
+            bgcolor=ft.Colors.BLUE,
+            content=ft.Text(f"@{buyer_username}", color=ft.Colors.WHITE, size=16),
+            border_radius=8,
+            alignment=ft.alignment.center,
+        ),
+        on_drag_start=on_drag_start,
+        **kwargs
+    )
 
-        # Subcards for each post
-        subcards = []
-        for post in self.posts:
-            subcards.append(subcard(post))
-
-        card_content = card(subcards, ready = True, username = self.buyer_username)
-
-        super().__init__(
-            group="orders",
-            data={"id": self.buyer_username, "from_stage": "Active Bids"},
-            content=card_content,
-            on_drag_start=on_drag_start,
-            **kwargs
-        )
-    
-    def refresh_display(self):
-        # Update UI when post data changes
-        pass
-
-
+    return ft.Stack(
+        [
+            card_content,
+            overlay_draggable,  # This will be at the top of the stack, aligned with the header
+        ],
+        width=card_width,
+        # No height constraint!
+    )
 
 def create_column(stage, orders : list[tuple], on_accept, on_update=None):
     # Column header
-    header = ft.Text(stage, size=18, weight=ft.FontWeight.BOLD, color = ft.Colors.WHITE)
+    header = ft.Text(stage, size=18, weight=ft.FontWeight.BOLD)
     # Order cards
-
-    
     order_cards = []
     for order in orders:
         order_cards.append(PostDraggableFactory.create(order))
         #TODO check for unbought later
-    
     # Drag target for dropping cards
     drag_target = ft.DragTarget(
         group="orders",
@@ -155,7 +176,6 @@ async def main(page: ft.Page):
         # Row of columns
         def make_on_accept(stage):
             def on_accept(e):
-                
                 print('on accept')
                 data = e.data
                 if isinstance(data, str):
