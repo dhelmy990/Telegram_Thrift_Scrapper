@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 import pytz
+import dill as pickle
+import os
+
 
 
 sgt_timezone = pytz.timezone('Asia/Singapore')
@@ -35,3 +38,36 @@ async def iter_specific_messages(client, entity, message_ids):
     for msg in messages:
         if msg is not None:
             yield msg
+
+
+def pickle_processing(at):
+    if 'pkl' not in at[-4:]:
+        at = at + '.pkl'
+    
+    dir_path = 'pass_between/'
+    total_path = dir_path + at
+    
+    return total_path
+
+
+async def save_pickle(items, at):
+    total_path = pickle_processing(at)
+    with open(total_path, 'wb') as f:
+        pickle.dump(items, f)
+
+    #god i hope this works
+
+async def load_pickle(items, at):
+    total_path = pickle_processing(at)
+    with open(total_path, 'rb') as f:
+        return pickle.load(items, f)
+
+
+def debug_pickle(obj):
+    try:
+        pickle.dumps(obj)
+        print("Object can be pickled")
+    except Exception as e:
+        print(f"Pickle error: {e}")
+        print(f"Object type: {type(obj)}")
+        print(f"Object attributes: {dir(obj)}")

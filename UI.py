@@ -89,7 +89,7 @@ class BiddedDraggable(ft.Draggable):
                         ),
                         ft.Text("Bids", weight=ft.FontWeight.BOLD),
                     ]),
-                    ft.ListView(subcards, height=200, on_scroll="auto"),
+                    ft.ListView(subcards, height=200),
                 ], spacing=10),
                 padding=10,
                 bgcolor=ft.Colors.SURFACE,
@@ -169,6 +169,9 @@ async def main(page: ft.Page):
         # Row of columns
         def make_on_accept(stage):
             def on_accept(e):
+                """
+                """
+                print('on accept')
                 data = e.data
                 if isinstance(data, str):
                     import json

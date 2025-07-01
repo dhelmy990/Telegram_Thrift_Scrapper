@@ -11,34 +11,47 @@ class Post(ABC):
         self.best_buyer = None
         self.offer = 0
         self.predicted_price = -float('inf') #dummy value for now. All must go!
+        # Store both original media objects and their string representations
+        self._media_objects = []  # Original Telegram media objects
+        self._media_strings = []  # String representations for serialization
 
     def get_all_images(self):
-        give = []
-        #print(len(self.items))
-        for each in self.items:
-            give.append(each.media)
-        return give
+        """Returns the original Telegram media objects for downloading"""
+        return self._media_objects
+    
+    def get_media_strings(self):
+        """Returns string representations of media for serialization"""
+        return self._media_strings
+    
+    def set_media(self, media_objects):
+        """Set both media objects and their string representations"""
+        self._media_objects = media_objects
+        self._media_strings = [str(obj) for obj in media_objects]
     
     async def fletify_image(self):
+        """Download and save the first image for Flet display"""
+        if not self._media_objects:
+            return None
+            
         path = 'media/'+ str(self.get_root())
         if not os.path.exists(path):
-            get = self.get_all_images()
-            get = get[0]
+            # Ensure media directory exists
+            os.makedirs('media', exist_ok=True)
+            
+            get = self._media_objects[0]  # Use original media object
             raw_bytes = await client.download_media(get, file=bytes)
             with open(path, 'wb') as f:
                 f.write(raw_bytes) 
-        
+        return path
     
     def flet_image(self):
+        """Return base64 encoded image for Flet display"""
         path = 'media/'+ str(self.get_root())
+        if not os.path.exists(path):
+            return None
         with open(path, 'rb') as r:
             raw_bytes = r.read()
         return base64.b64encode(raw_bytes).decode()
-    
-        
-        
-
-
 
     async def _set_buy_n_price_(self, b, o):
         self.best_buyer = b
@@ -50,8 +63,6 @@ class Post(ABC):
             raise KeyError
         return await get_username(self.best_buyer)
         
-    
-    
     def offer_ready(self):
         #note for the time being, the second of these two terms returns True in all cases
         return (self.best_buyer is not None and self.offer > self.predicted_price)    
@@ -65,7 +76,7 @@ class Post(ABC):
         pass
 
     @abstractmethod
-    def get_text() -> str:
+    def get_text(self) -> str:  # Fixed: added self parameter
         pass
 
     @abstractmethod
@@ -73,7 +84,7 @@ class Post(ABC):
         pass
 
     @staticmethod
-    def Factory(msg: int, cluster: list): #TODO typecast the msg as wtv the object for msg is
+    def Factory(msg, cluster: list):  # Fixed: removed incorrect type hint for msg
         """
         Factory method to create an Auction or FCFS object based on the message text.
         If the text contains 'sb', it creates an Auction object.
@@ -92,14 +103,14 @@ class Post(ABC):
                     root=msg.id, 
                     items=cluster, 
                     sb=cost,
-                    msg=msg
+                    text=text
                 )
             elif 'fcfs' in text:    
                 return FCFS(
                     root=msg.id, 
                     items=cluster, 
                     sb=cost, 
-                    msg=msg
+                    text = text
                 )  
         return None
     
@@ -116,21 +127,32 @@ class Post(ABC):
             return None
         return int(number.group())
 
-    
+    def to_serializable_dict(self):
+        """Create a serializable dictionary representation for UI/pickling"""
+        return {
+            'root': self.get_root(),
+            'text': self.get_text(),
+            'original_price': self.get_original_price(),
+            'best_buyer': self.best_buyer,
+            'offer': self.offer,
+            'best_buyer_name': getattr(self, 'best_buyer_name', None),
+            'media_strings': self._media_strings,
+            'predicted_price': self.predicted_price,
+            'class_type': self.__class__.__name__
+        }
+
 class FCFS(Post):
-    def __init__(self, root : int, items : list, sb, msg):
+    def __init__(self, root : int, items : list, sb, text):
         super().__init__()
-        self.items = items
+        # Extract media objects from items and store them properly
+        media_objects = [item.media for item in items if hasattr(item, 'media') and item.media]
+        self.set_media(media_objects)
         self._root = root
         self.sb = sb
-        self.msg = msg
-
-        #TODO figure out SB
-        #TODO figure out FCFS oh you know what i realise its not 
-        #TODO have SB and FCFS inherit from Post at the same time
+        self.text = text
 
     def get_text(self) -> str:
-        return self.msg.text if self.msg.text is not None else ""
+        return self.text if self.text is not None else ""
 
     def get_root(self) -> int:
         return self._root
@@ -140,8 +162,7 @@ class FCFS(Post):
             Returns the original price of the item.
             This is the SB price for FCFS.
         """
-        return self.sb
-    
+        return self.sb    
 
     def extract_offer(self, text): #TODO make this a method taking only replies in
         """
@@ -168,15 +189,17 @@ class FCFS(Post):
             
 
 class Auction(Post):
-    def __init__(self, root : int, items : list, sb, msg=None):
+    def __init__(self, root : int, items : list, sb, text=None):
         super().__init__()
-        self.items = items
+        # Extract media objects from items and store them properly
+        media_objects = [item.media for item in items if hasattr(item, 'media') and item.media]
+        self.set_media(media_objects)
         self._root = root
         self.sb = sb
-        self.msg = msg
+        self.text = text
 
     def get_text(self) -> str:
-        return self.msg.text if self.msg.text is not None else ""
+        return self.text if self.text is not None else ""
 
     def get_root(self) -> int:
         return self._root

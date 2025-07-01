@@ -3,7 +3,7 @@ from config.secrets import t_api, t_hash, channel_username, mailing_cost, test_i
 from collections import defaultdict
 from telethon.tl.types import InputMessagesFilterPhotos
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
-from utils.collect_utils import last_used, save_time, iter_specific_messages, dt_min
+from utils.collect_utils import last_used, save_time, iter_specific_messages, dt_min, save_pickle, debug_pickle
 from utils.Auction import *
 import db
 import json
@@ -57,7 +57,7 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
     no_buy  = []
     have_buy = []
      
-    id_purchases_dict = defaultdict(lambda : list()) #k,v is tele_id,relevant_post. So are simply reformatting to go from the buyers to their post 
+    id_purchases_dict = defaultdict(list) #k,v is tele_id,relevant_post. So are simply reformatting to go from the buyers to their post 
     
     for post in post_dict.values():
         print('--'*20)
@@ -122,10 +122,10 @@ async def main():
 
 
 
+# Test your Post objects
+
+
 async def active_posts():
-
-    
-
     #deal with the old first
     OLD_post_dict = await gather_posts() #no param means get all the old ones
     buyer_to_post , have_bids, no_bids = await sieve_posts(OLD_post_dict, debug = True) #the latter two are lists of posts
@@ -142,12 +142,25 @@ async def active_posts():
     
 
     #Cache all images. This is a bad solution.
+
+    """
+        for posts in buyer_to_post.values():
+            for post in posts:
+                debug_pickle(post) 
+        sys.exit(0)
+    """
+    
+    tasks = []
     for post in no_bids:
-        asyncio.create_task(post.fletify_image())
+        tasks.append(post.fletify_image())
     for posts in buyer_to_post.values():
         for post in posts:
-            asyncio.create_task(post.fletify_image())
- 
+            tasks.append(post.fletify_image())
+
+    #save all of the above lmao
+    #tasks.append(save_pickle(buyer_to_post, 'bought_dict'))
+    #tasks.append(save_pickle(no_bids, 'unbought_dict'))
+    await asyncio.gather(*tasks)
     ans = buyer_to_post, no_bids
     return ans
 
