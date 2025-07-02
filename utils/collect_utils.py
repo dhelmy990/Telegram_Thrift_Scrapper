@@ -59,7 +59,11 @@ async def save_pickle(items, at):
         pickle.dump(items, f)
 
     #god i hope this works
-
+    
+def load_pickle(at):
+    total_path = pickle_processing(at)
+    with open(total_path, 'rb') as f:
+        return pickle.load(f)
 
 def load_pickles(at = 'pass_between'):
     pkl_names = list(Path(at).glob("*.pkl"))
@@ -68,6 +72,8 @@ def load_pickles(at = 'pass_between'):
         with open(pkl, 'rb') as f:
             jar.append(pickle.load(f))
     return jar
+
+
 
 
 def debug_pickle(obj):

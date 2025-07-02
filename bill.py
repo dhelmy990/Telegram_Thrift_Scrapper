@@ -3,7 +3,7 @@ from config.secrets import t_api, t_hash, channel_username, mailing_cost, test_i
 from collections import defaultdict
 from telethon.tl.types import InputMessagesFilterPhotos
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
-from utils.collect_utils import last_used, save_time, iter_specific_messages, dt_min, save_pickle, debug_pickle
+from utils.collect_utils import last_used, save_time, iter_specific_messages, dt_min, save_pickle, load_pickle
 from utils.Auction import *
 import db
 import json
@@ -98,28 +98,22 @@ async def send_order(buyer_to_post : tuple[int, list[Post]]):
     await client.send_message(id, bill_text.format(working_total))
 
 async def main():
-    """
-        I AM USING THIS AS A DEBUG FUNCTION. ACTUAL UTILITY FUNCTION IS BELOW.
-    """
-
-    #deal with the old first
-    OLD_post_dict = await gather_posts() #no param means get all the old ones
-    buyer_to_post , have_bids, no_bids = await sieve_posts(OLD_post_dict, debug = True) #the latter two are lists of posts
-    #remove those with bids
+    import argparse
+    parser = argparse.ArgumentParser(description="CLI input handler")
+    parser.add_argument("process_name", type=str, help="Name of the process")
+    parser.add_argument("id", type=str, help="Pkl id")
     
-    #deal with the new now
-    NEW_post_list = await gather_posts(since=last_used())
-    more_buyer_to_post , have_bids, no_bids = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
-    #add those with no bids
+    args = parser.parse_args()
+    
+    process_name = args.process_name
+    obj_id = args.id
 
-    #well now we have bigger dict. Ahaha. Ha.
-    buyer_to_post.update(more_buyer_to_post)
-
-    for btp in buyer_to_post.items():
-        await send_order(btp)
+    if process_name == 'bill_customer':
+        await send_order(load_pickle(obj_id))
 
 
-    #TODO of course, we still want to add the still_untouched_posts to a database
+    
+
     
 
 
@@ -176,7 +170,7 @@ async def active_posts():
     
 if __name__ == '__main__':
     with client:
-        client.loop.run_until_complete(active_posts())
+        client.loop.run_until_complete(main())
 
     
     

@@ -6,6 +6,7 @@ from bill import send_order
 from collections import defaultdict 
 from utils.collect_utils import load_pickles
 import json
+import subprocess
 
 ORDER_STAGES = [
     "Active Bids",
@@ -17,7 +18,7 @@ ORDER_STAGES = [
 
 def clientise(order, stage):
     if stage == 1:
-        pass
+        subprocess.run(["python3", "bill.py", 'bill_customer', str(order[0])])
     
         
 
