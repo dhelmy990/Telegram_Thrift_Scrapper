@@ -8,6 +8,7 @@ from collections import defaultdict
 from utils.collect_utils import load_pickles
 import json
 import subprocess
+import asyncio
 
 ORDER_STAGES = [
     "Active Bids",
@@ -227,7 +228,7 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
     )
     # Add Update button for Active Bids
     children = [header, drag_target_container]
-    if on_update and stage == "Active Bids":
+    if on_update and stage == ORDER_STAGES[0]:
         children.append(
             ft.ElevatedButton("Update!", on_click=on_update, bgcolor=ft.Colors.PRIMARY)
         )
@@ -238,8 +239,7 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
         padding=15,
         expand=True,
         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
-        margin=5,
-        width=320,  # Make columns wider
+        margin=5
     )
 
 def get_address_event(order, page, result, lookback = 10):
@@ -249,12 +249,17 @@ def get_address_event(order, page, result, lookback = 10):
                                        '--lookback', str(lookback)], 
                                       stdout = subprocess.PIPE, text = True)
     name_f, phone_f, address_f = ft.TextField(label="Name", value = order[1][0].best_buyer_name), ft.TextField(label="Phone number"), ft.TextField(label="Address", multiline=True, min_lines=2, max_lines=3)
+    fattybox = ft.Checkbox(label="Bulky item", value=False)
     def submit_address(e):
         if not (name_f.value is None or not phone_f.value.isdigit() or len(phone_f.value) != 8 or address_f.value is None):
             result["name"] = name_f.value
             result["phone"] = phone_f.value
             result["address"] = address_f.value
+            result["ninjaVan"] = fattybox.value
             result["completed"] = True
+    def handle_dismiss(e):
+        print("LET ME GO")
+        result["completed"] = True
 
 
     image_widget = ft.Image(
@@ -266,8 +271,11 @@ def get_address_event(order, page, result, lookback = 10):
     )
         
     # Create the dialog
+    
+       
+
     dialog = ft.AlertDialog(
-        modal=True,
+        modal=False,
         content=ft.Container(
             width=350,
             padding=20,
@@ -281,7 +289,7 @@ def get_address_event(order, page, result, lookback = 10):
                     ft.Row(
                         [
                             ft.OutlinedButton(text = "Ok!", on_click = submit_address),
-                            ft.Checkbox(label="Bulky item", value=False),
+                            fattybox,
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
@@ -290,7 +298,7 @@ def get_address_event(order, page, result, lookback = 10):
                 spacing=10,
             ),
         ),
-        on_dismiss=lambda e: None,  # Optional: handle dialog close
+        on_dismiss=handle_dismiss,
     )
 
 
@@ -308,7 +316,7 @@ def get_address_event(order, page, result, lookback = 10):
     while not result["completed"]:
         sleep(0.1)  # Check every 100ms
         page.update()
-        
+
     page.close(dialog)
     # If you don't have access to page here, you may need to pass it in as an argument.
 
@@ -359,11 +367,10 @@ async def main(page: ft.Page):
                 clientise(order, ORDER_STAGES.index(to_stage))
                 e.data["from_stage"] = to_stage 
                 print(str(e.data) + "Moved")     
-                if to_stage == "Order Completed":
-                    #print("Order Completed!")
+                if to_stage == ORDER_STAGES[3]:
+                    print("Order Completed!")
                     #print(state.orders[ORDER_STAGES[3]])
-                    page.snack_bar = ft.SnackBar(ft.Text("Order Completed!"))
-                    page.snack_bar.open = True
+                    page.open(ft.SnackBar(ft.Text("Order Completed!")))
                     page.update()
                 refresh()
 
@@ -371,19 +378,48 @@ async def main(page: ft.Page):
         
         
 
-        def on_update(e):
-            page.snack_bar = ft.SnackBar(ft.Text("Update clicked!"))
-            page.snack_bar.open = True
-            page.update()
+        def get_orders(e):
+            # Find the Stack parent (the column's direct parent)
+            stack = e.control
+            while stack and not isinstance(stack, ft.Stack):
+                stack = stack.parent
+            if not stack:
+                print("Could not find stack parent!")
+                return
+            # Add overlay and progress ring
+            overlay = ft.Container(bgcolor=ft.Colors.BLACK, opacity=0.7, expand=True)
+            ring = ft.ProgressRing(width=60, height=60, color=ft.Colors.WHITE)
+            overlay_container = ft.Container(content=ring, alignment=ft.alignment.center, expand=True)
+            stack.controls.append(overlay)
+            stack.controls.append(overlay_container)
+            stack.update()
+            from threading import Timer
+
+            def remove_overlay():
+                # Remove the last two controls (overlay and ring)
+                if overlay in stack.controls:
+                    stack.controls.remove(overlay)
+                if overlay_container in stack.controls:
+                    stack.controls.remove(overlay_container)
+                stack.update()
+            
+            timer = Timer(3.0, remove_overlay)
+            timer.start()
 
         row = ft.Row(
             [
-                create_column(
-                    stage,
-                    state.orders[stage],
-                    on_accept=make_on_accept(stage),
-                    on_update=on_update if stage == "Active Bids" else None,
+                ft.Stack(
+                    [
+                    create_column(
+                            stage,
+                            state.orders[stage],
+                            on_accept=make_on_accept(stage),
+                            on_update=get_orders if stage == ORDER_STAGES[0] else None,
+                        )
+                    ],
+                    expand = True
                 )
+                
                 for stage in ORDER_STAGES
             ],
             expand=True,
