@@ -47,7 +47,7 @@ def pickle_processing(at):
     if 'pkl' not in at[-4:]:
         at = at + '.pkl'
     
-    dir_path = 'pass_between/'
+    dir_path = 'jar/'
     total_path = dir_path + at
     
     return total_path
@@ -59,13 +59,28 @@ async def save_pickle(items, at):
         pickle.dump(items, f)
 
     #god i hope this works
-    
+
+
+#not in use till i move beyond lazy loading
 def load_pickle(at):
     total_path = pickle_processing(at)
     with open(total_path, 'rb') as f:
         return pickle.load(f)
+    
+def load_whole_pickles_jar(at = 'jar') -> list[list]:
+    """
+        LIST OF LIST OF OBJECTS
+        INDEX CORRESPONDS WITH COLUMN
+        DONT BE STUPID
+    """
+    all_pickles = []
+    for i in range(3):
+        path = at + '/' + str(i)
+        os.makedirs(path, exist_ok=True)
+        all_pickles.append(load_pickles_from(path))
+    return all_pickles
 
-def load_pickles(at = 'pass_between'):
+def load_pickles_from(at):
     pkl_names = list(Path(at).glob("*.pkl"))
     jar = []
     for pkl in pkl_names:

@@ -5,7 +5,7 @@ import bill
 from time import sleep
 from bill import send_order
 from collections import defaultdict 
-from utils.collect_utils import load_pickles
+from utils.collect_utils import load_whole_pickles_jar
 import json
 import subprocess
 import asyncio
@@ -41,7 +41,8 @@ class OrderState:
         
     async def load(self):
         #new_posts = await bill.active_posts()
-        new_posts = load_pickles()
+        new_posts = load_whole_pickles_jar()
+        new_posts = new_posts[0]
         for new in new_posts:
             self.orders[ORDER_STAGES[0]].append(new)
     
@@ -327,7 +328,7 @@ async def main(page: ft.Page):
     page.scroll = ft.ScrollMode.AUTO
     state = OrderState()
     page.window.full_screen = True
-    await state.load()
+    #await state.load()
 
     def refresh():
         # Rebuild the UI with the current state
@@ -359,7 +360,6 @@ async def main(page: ft.Page):
                     get_address_event(order, e.page, result)
                     if result.get("address") is None: order = None
 
-
                 if order is None:
                     return #for whatever reason, change nothing
                 
@@ -375,11 +375,13 @@ async def main(page: ft.Page):
                 refresh()
 
             return on_accept
-        
-        
 
-        def get_orders(e):
+
+        def hold_for_orders(e):
             # Find the Stack parent (the column's direct parent)
+            active_orders = subprocess.Popen(['python3', 'bill.py', 'active_orders'],
+                                      stdout = subprocess.PIPE, text = True)
+            
             stack = e.control
             while stack and not isinstance(stack, ft.Stack):
                 stack = stack.parent
@@ -393,7 +395,7 @@ async def main(page: ft.Page):
             stack.controls.append(overlay)
             stack.controls.append(overlay_container)
             stack.update()
-            from threading import Timer
+            
 
             def remove_overlay():
                 # Remove the last two controls (overlay and ring)
@@ -402,9 +404,24 @@ async def main(page: ft.Page):
                 if overlay_container in stack.controls:
                     stack.controls.remove(overlay_container)
                 stack.update()
+
             
-            timer = Timer(3.0, remove_overlay)
-            timer.start()
+            def when_im_done():
+                remove_overlay()
+                e.page.update() 
+                refresh()    
+
+            info, error = active_orders.communicate()
+            if error is None:
+                async def load_with_callback():
+                    await state.load()
+                    when_im_done()
+                
+                e.page.run_task(load_with_callback)
+            else:
+                when_im_done()
+                e.page.open(ft.SnackBar((ft.Text("Something on telegram's side went wrong. Contact Diego :(", color = ft.Colors.WHITE)), bgcolor = ft.Colors.RED))
+                #TODO ADD ERROR STATE 
 
         row = ft.Row(
             [
@@ -414,7 +431,7 @@ async def main(page: ft.Page):
                             stage,
                             state.orders[stage],
                             on_accept=make_on_accept(stage),
-                            on_update=get_orders if stage == ORDER_STAGES[0] else None,
+                            on_update=hold_for_orders if stage == ORDER_STAGES[0] else None,
                         )
                     ],
                     expand = True

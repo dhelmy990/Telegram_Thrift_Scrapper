@@ -115,7 +115,7 @@ async def main():
         await active_posts()
     elif process_name == 'bill_customer':
         obj_id = args.user_id
-        await send_order(load_pickle(obj_id))
+        await send_order(load_pickle('0/' + str(obj_id)))
     elif process_name == 'scrape_chat':
         print('97896057')
         print('520156')
@@ -158,9 +158,9 @@ async def active_posts():
     tasks = []
     for post in no_bids:
         tasks.append(post.fletify_image())
-        tasks.append(save_pickle((None, post), post.get_root()))
+        tasks.append(save_pickle((None, post), "0/" + str(post.get_root())))
     for posts in buyer_to_post.items():
-        tasks.append(save_pickle(posts, posts[0]))
+        tasks.append(save_pickle(posts, "0/" + str(posts[0])))
         for post in posts[1]:
             tasks.append(post.fletify_image())
             

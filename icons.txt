@@ -1,4 +1,11 @@
 ﻿UI TODO:
-Snackbar feedback
 Automatic fullscreen
+
+
+Bug found:
+If you try to push an object from one place to another during the loading screen, due to the way i lazily programmed this it cancels the load screen out
+
+This is a known bug that i will NOT try to fix yet because im really sick and tired of this project
+
+the snack bars fonts are really small
 
