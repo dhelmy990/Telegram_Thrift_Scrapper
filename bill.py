@@ -86,16 +86,16 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
     return id_purchases_dict, have_buy, no_buy
     
 
-async def send_order(buyer_to_post : dict[int, Post]):
-    for id, list_of_posts in buyer_to_post.items():
-        id = test_id
-        working_total = mailing_cost
+async def send_order(buyer_to_post : tuple[int, list[Post]]):
+    await client.start()
+    id = test_id
+    working_total = mailing_cost
 
-        for post in list_of_posts:
-            working_total += post.offer
-            await client.send_file('me', post.get_all_images(), caption = str(post.offer))
-        
-        await client.send_message(id, bill_text.format(working_total))
+    for post in buyer_to_post[1]:
+        working_total += post.offer
+        await client.send_file(id, post.get_all_images(), caption = str(post.offer))
+    
+    await client.send_message(id, bill_text.format(working_total))
 
 async def main():
     """
@@ -115,10 +115,12 @@ async def main():
     #well now we have bigger dict. Ahaha. Ha.
     buyer_to_post.update(more_buyer_to_post)
 
+    for btp in buyer_to_post.items():
+        await send_order(btp)
+
 
     #TODO of course, we still want to add the still_untouched_posts to a database
-
-    await send_order(buyer_to_post)
+    
 
 
 
@@ -153,16 +155,19 @@ async def active_posts():
     tasks = []
     for post in no_bids:
         tasks.append(post.fletify_image())
-    for posts in buyer_to_post.values():
-        for post in posts:
+        tasks.append(save_pickle((None, post), post.get_root()))
+    for posts in buyer_to_post.items():
+        tasks.append(save_pickle(posts, posts[0]))
+        for post in posts[1]:
             tasks.append(post.fletify_image())
+            
 
     #save all of the above lmao
     #tasks.append(save_pickle(buyer_to_post, 'bought_dict'))
     #tasks.append(save_pickle(no_bids, 'unbought_dict'))
     await asyncio.gather(*tasks)
     #no bids comes later
-    return [(k, v) for k, v in buyer_to_post.items()] + [(None, post) for post in no_bids]
+    #return [(k, v) for k, v in buyer_to_post.items()] + [(None, post) for post in no_bids]
     
 
     #TODO of course, we still want to add the still_untouched_posts to a database
@@ -171,7 +176,7 @@ async def active_posts():
     
 if __name__ == '__main__':
     with client:
-        client.loop.run_until_complete(main())
+        client.loop.run_until_complete(active_posts())
 
     
     

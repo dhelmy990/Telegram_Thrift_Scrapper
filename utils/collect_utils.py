@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import pytz
 import dill as pickle
 import os
+from pathlib import Path
 
 
 
@@ -41,6 +42,8 @@ async def iter_specific_messages(client, entity, message_ids):
 
 
 def pickle_processing(at):
+    if isinstance(at, int):
+        at = str(at)
     if 'pkl' not in at[-4:]:
         at = at + '.pkl'
     
@@ -57,10 +60,14 @@ async def save_pickle(items, at):
 
     #god i hope this works
 
-async def load_pickle(items, at):
-    total_path = pickle_processing(at)
-    with open(total_path, 'rb') as f:
-        return pickle.load(items, f)
+
+def load_pickles(at = 'pass_between'):
+    pkl_names = list(Path(at).glob("*.pkl"))
+    jar = []
+    for pkl in pkl_names:
+        with open(pkl, 'rb') as f:
+            jar.append(pickle.load(f))
+    return jar
 
 
 def debug_pickle(obj):

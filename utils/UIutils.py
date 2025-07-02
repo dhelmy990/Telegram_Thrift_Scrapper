@@ -36,6 +36,7 @@ def card(subcards, ready = False, username = None):
         subcards = [subcards]
     
 
+
     card_content = ft.Card(
             content=ft.Container(
                 content=ft.Column([
@@ -54,5 +55,3 @@ def card(subcards, ready = False, username = None):
             elevation=2,
         )
     return card_content
-
-

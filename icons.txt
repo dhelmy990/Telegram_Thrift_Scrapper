@@ -1,0 +1,4 @@
+﻿UI TODO:
+Snackbar feedback
+Automatic fullscreen
+

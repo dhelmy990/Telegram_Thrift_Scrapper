@@ -2,17 +2,25 @@ import flet as ft
 from utils.Auction import *
 from utils.UIutils import subcard, card
 import bill
-import asyncio
-from collections import defaultdict
-from client import client, get_username
+from bill import send_order
+from collections import defaultdict 
+from utils.collect_utils import load_pickles
 import json
 
 ORDER_STAGES = [
     "Active Bids",
     "Pending Payment",
     "To Pack",
-    "Order Completed",
+    "Order Completed"
 ]
+    
+
+def clientise(order, stage):
+    if stage == 1:
+        pass
+    
+        
+
 
 # State: places the orders in each stage
 class OrderState:
@@ -28,13 +36,31 @@ class OrderState:
         #change data
         
     async def load(self):
-        new_posts = await bill.active_posts()
+        #new_posts = await bill.active_posts()
+        new_posts = load_pickles()
         for new in new_posts:
             self.orders[ORDER_STAGES[0]].append(new)
+    
+    @staticmethod
+    def valid_move(order_id, from_stage, to_stage):
+        fro = ORDER_STAGES.index(from_stage)
+        to = ORDER_STAGES.index(to_stage)
+
+        if to - fro != 1:
+            return False
+        return not isinstance(order_id, int)
+        
+        
+    
+
 
     def move_order(self, order_id, from_stage, to_stage):
         #TODO what did they give you fucking hashmaps for. This is O(n). You deserve your unemployment.
-        print(self.orders[from_stage])
+        #print(self.orders[from_stage])
+        if not OrderState.valid_move(order_id, from_stage, to_stage):
+            return None
+
+
         for order in self.orders[from_stage]:
             #this line identifies it based on the two cases: the id is a username, or the id is the root of that single post. 
             #I promise, I will truly, never, ever engineer software in python again
@@ -150,7 +176,15 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
 
     # Drag target for dropping cards
     # If no cards present, content will be set to a plus sign
-    if len(order_cards) == 0:
+    if stage == "Order Completed":
+        content = ft.Container(
+            content=ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, size=80, color=ft.Colors.GREY_600),
+            alignment=ft.alignment.center,
+            padding=20,
+            border=ft.border.all(2, ft.Colors.GREY_400),
+            border_radius=10,
+        )
+    elif len(order_cards) == 0:
         content = ft.Container(
             content=ft.Icon(ft.Icons.ADD, size=80, color=ft.Colors.GREY_600),
             alignment=ft.alignment.center,
@@ -159,7 +193,23 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
             border_radius=10,
         )
     else:
-        content = ft.Column(order_cards, spacing=10)
+        # Create a container with the cards and a drop zone indicator
+        content = ft.Container(
+            content=ft.Column([
+                ft.Column(order_cards, spacing=10),
+                # Add a visible drop zone at the bottom
+                ft.Container(
+                    content=ft.Text("Drop here", size=14, color=ft.Colors.GREY_600),
+                    alignment=ft.alignment.center,
+                    padding=10,
+                    border=ft.border.all(2, ft.Colors.GREY_300),
+                    border_radius=8,
+                    bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.BLUE),
+                    margin=ft.margin.only(top=10),
+                )
+            ], spacing=5),
+            padding=10,
+        )
 
     drag_target = ft.DragTarget(
         group="orders",
@@ -167,10 +217,19 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
         on_accept=on_accept,
         on_will_accept=lambda e: True,
         on_leave=lambda e: None,
-        on_move=lambda e: None
+        on_move=lambda e: None,
+    )
+    
+    # Create a container for the drag target with visual feedback
+    drag_target_container = ft.Container(
+        content=drag_target,
+        border=ft.border.all(2, ft.Colors.BLUE_200),
+        border_radius=8,
+        padding=5,
+        bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.BLUE),
     )
     # Add Update button for Active Bids
-    children = [header, drag_target]
+    children = [header, drag_target_container]
     if on_update and stage == "Active Bids":
         children.append(
             ft.ElevatedButton("Update!", on_click=on_update, bgcolor=ft.Colors.PRIMARY)
@@ -181,16 +240,18 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
         border_radius=10,
         padding=15,
         expand=True,
-        bgcolor=ft.Colors.ON_SURFACE_VARIANT,
+        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLUE),
         margin=5,
+        width=320,  # Make columns wider
     )
 
 async def main(page: ft.Page):
-    await client.start()
+    
     page.title = "Order Tracker Workstation"
     page.bgcolor = ft.Colors.SURFACE
     page.scroll = ft.ScrollMode.AUTO
     state = OrderState()
+    page.window.full_screen = True
     await state.load()
 
     def refresh():
@@ -215,15 +276,24 @@ async def main(page: ft.Page):
                 order_id = data["id"]
                 from_stage = data["from_stage"]
                 print(e.data)
-                
-                if from_stage != stage:
-                    change = state.move_order(order_id, from_stage, stage)
-                    e.data["from_stage"] = stage
-                    
-                    if change is not None: 
-                        print(str(e.data) + "again")     
-                        refresh()
+
+                change = state.move_order(order_id, from_stage, stage)
+
+                if change is not None:
+                    clientise(change, ORDER_STAGES.index(stage))
+                    e.data["from_stage"] = stage 
+                    print(str(e.data) + "Moved")     
+                    if stage == "Order Completed":
+                        #print("Order Completed!")
+                        #print(state.orders[ORDER_STAGES[3]])
+                        page.snack_bar = ft.SnackBar(ft.Text("Order Completed!"))
+                        page.snack_bar.open = True
+                        page.update()
+                    refresh()
+
             return on_accept
+        
+        
 
         def on_update(e):
             page.snack_bar = ft.SnackBar(ft.Text("Update clicked!"))
@@ -243,7 +313,13 @@ async def main(page: ft.Page):
             expand=True,
             spacing=10,
         )
-        page.controls.append(row)
+
+        row_container = ft.Container(
+            height = page.height - 200,
+            content = row,
+            expand=True,
+        )
+        page.controls.append(row_container)
         page.update()
 
     refresh()
