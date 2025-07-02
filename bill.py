@@ -108,7 +108,10 @@ async def main():
     process_name = args.process_name
     obj_id = args.id
 
-    if process_name == 'bill_customer':
+    if process_name == 'active_orders':
+        await active_posts()
+    
+    elif process_name == 'bill_customer':
         await send_order(load_pickle(obj_id))
 
 

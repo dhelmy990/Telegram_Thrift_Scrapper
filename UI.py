@@ -18,6 +18,7 @@ ORDER_STAGES = [
 
 def clientise(order, stage):
     if stage == 1:
+        print('attempt')
         subprocess.run(["python3", "bill.py", 'bill_customer', str(order[0])])
     
         
@@ -55,12 +56,11 @@ class OrderState:
     
 
 
-    def move_order(self, order_id, from_stage, to_stage):
+    def check_swap(self, order_id, from_stage, to_stage):
         #TODO what did they give you fucking hashmaps for. This is O(n). You deserve your unemployment.
         #print(self.orders[from_stage])
         if not OrderState.valid_move(order_id, from_stage, to_stage):
             return None
-
 
         for order in self.orders[from_stage]:
             #this line identifies it based on the two cases: the id is a username, or the id is the root of that single post. 
@@ -68,13 +68,8 @@ class OrderState:
             #I was wrong. Java and JavaScript are actually pretty good languages.
             #No one should ever have to write anything meant for a UI in this cursed fucking langauge where i can set what was formerly a dictionary to my custom class
             print(order, from_stage)
-            if order[0] is None:
-                if order_id == order[1].get_root():
-                    self.change_stage(order, from_stage, to_stage)
-                    return order
-            else:
-                if order_id == order[1][0].load_best_buyer(): 
-                    self.change_stage(order, from_stage, to_stage)
+            if order[0] is not None: #this is now redundant
+                if order_id == order[1][0].load_best_buyer():
                     return order
         return None
      
@@ -246,6 +241,50 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
         width=320,  # Make columns wider
     )
 
+def get_address_event(order, page):
+    # Create the image widget
+    image_widget = ft.Image(
+        src_base64=order[1][0].flet_image(),
+        width=200,
+        height=200,
+        fit=ft.ImageFit.COVER,
+        border_radius=ft.border_radius.all(10),
+    )
+
+    # Create the dialog
+    dialog = ft.AlertDialog(
+        modal=True,
+        content=ft.Container(
+            width=350,
+            padding=20,
+            content=ft.Column(
+                [
+                    ft.Row([image_widget], alignment = ft.MainAxisAlignment.CENTER)
+                    ,
+                    ft.TextField(label="Name"),
+                    ft.TextField(label="Phone number"),
+                    ft.TextField(label="Address", multiline=True, min_lines=2, max_lines=3),
+                    ft.Row(
+                        [
+                            ft.Checkbox(label="Bulky item", value=False),
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
+                    ),
+                ],
+                tight=True,
+                spacing=10,
+            ),
+        ),
+        on_dismiss=lambda e: None,  # Optional: handle dialog close
+    )
+
+    # Show the dialog
+    if page:
+        page.open(dialog)
+        
+        
+    # If you don't have access to page here, you may need to pass it in as an argument.
+
 async def main(page: ft.Page):
     
     page.title = "Order Tracker Workstation"
@@ -270,7 +309,7 @@ async def main(page: ft.Page):
             )
         )
         # Row of columns
-        def make_on_accept(stage):
+        def make_on_accept(to_stage):
             def on_accept(e):
                 e = page.get_control(e.src_id)
                 data = e.data
@@ -278,19 +317,27 @@ async def main(page: ft.Page):
                 from_stage = data["from_stage"]
                 print(e.data)
 
-                change = state.move_order(order_id, from_stage, stage)
+                order = state.check_swap(order_id, from_stage, to_stage)
+                #one last check, for the stage
+                if to_stage == ORDER_STAGES[2]:
+                    address = get_address_event(order, e.page)
+                    if address is None: order = None
 
-                if change is not None:
-                    clientise(change, ORDER_STAGES.index(stage))
-                    e.data["from_stage"] = stage 
-                    print(str(e.data) + "Moved")     
-                    if stage == "Order Completed":
-                        #print("Order Completed!")
-                        #print(state.orders[ORDER_STAGES[3]])
-                        page.snack_bar = ft.SnackBar(ft.Text("Order Completed!"))
-                        page.snack_bar.open = True
-                        page.update()
-                    refresh()
+
+                if order is None:
+                    return #for whatever reason, change nothing
+                
+                state.change_stage(order, from_stage, to_stage)
+                clientise(order, ORDER_STAGES.index(to_stage))
+                e.data["from_stage"] = to_stage 
+                print(str(e.data) + "Moved")     
+                if to_stage == "Order Completed":
+                    #print("Order Completed!")
+                    #print(state.orders[ORDER_STAGES[3]])
+                    page.snack_bar = ft.SnackBar(ft.Text("Order Completed!"))
+                    page.snack_bar.open = True
+                    page.update()
+                refresh()
 
             return on_accept
         
