@@ -2,6 +2,7 @@ import flet as ft
 from utils.Auction import *
 from utils.UIutils import subcard, card
 import bill
+from time import sleep
 from bill import send_order
 from collections import defaultdict 
 from utils.collect_utils import load_pickles
@@ -19,7 +20,7 @@ ORDER_STAGES = [
 def clientise(order, stage):
     if stage == 1:
         print('attempt')
-        subprocess.run(["python3", "bill.py", 'bill_customer', str(order[0])])
+        subprocess.run(["python3", "bill.py", 'bill_customer', '--user_id', str(order[0])])
     
         
 
@@ -241,8 +242,21 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
         width=320,  # Make columns wider
     )
 
-def get_address_event(order, page):
+def get_address_event(order, page, result, lookback = 10):
     # Create the image widget
+    customers_nums = subprocess.Popen(['python3', 'bill.py', 'scrape_chat', 
+                                       '--user_id', str(order[0]), 
+                                       '--lookback', str(lookback)], 
+                                      stdout = subprocess.PIPE, text = True)
+    name_f, phone_f, address_f = ft.TextField(label="Name", value = order[1][0].best_buyer_name), ft.TextField(label="Phone number"), ft.TextField(label="Address", multiline=True, min_lines=2, max_lines=3)
+    def submit_address(e):
+        if not (name_f.value is None or not phone_f.value.isdigit() or len(phone_f.value) != 8 or address_f.value is None):
+            result["name"] = name_f.value
+            result["phone"] = phone_f.value
+            result["address"] = address_f.value
+            result["completed"] = True
+
+
     image_widget = ft.Image(
         src_base64=order[1][0].flet_image(),
         width=200,
@@ -250,7 +264,7 @@ def get_address_event(order, page):
         fit=ft.ImageFit.COVER,
         border_radius=ft.border_radius.all(10),
     )
-
+        
     # Create the dialog
     dialog = ft.AlertDialog(
         modal=True,
@@ -261,14 +275,15 @@ def get_address_event(order, page):
                 [
                     ft.Row([image_widget], alignment = ft.MainAxisAlignment.CENTER)
                     ,
-                    ft.TextField(label="Name"),
-                    ft.TextField(label="Phone number"),
-                    ft.TextField(label="Address", multiline=True, min_lines=2, max_lines=3),
+                    name_f,
+                    phone_f,
+                    address_f,
                     ft.Row(
                         [
+                            ft.OutlinedButton(text = "Ok!", on_click = submit_address),
                             ft.Checkbox(label="Bulky item", value=False),
                         ],
-                        alignment=ft.MainAxisAlignment.END,
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
                 ],
                 tight=True,
@@ -278,11 +293,23 @@ def get_address_event(order, page):
         on_dismiss=lambda e: None,  # Optional: handle dialog close
     )
 
+
+    info, error = customers_nums.communicate()
+    if error is None:
+        print('free!')
+        info = info.split('\n')
+        phone_f.value = info[0]
+        address_f.value  = info[1]
+
     # Show the dialog
     if page:
         page.open(dialog)
+
+    while not result["completed"]:
+        sleep(0.1)  # Check every 100ms
+        page.update()
         
-        
+    page.close(dialog)
     # If you don't have access to page here, you may need to pass it in as an argument.
 
 async def main(page: ft.Page):
@@ -320,8 +347,9 @@ async def main(page: ft.Page):
                 order = state.check_swap(order_id, from_stage, to_stage)
                 #one last check, for the stage
                 if to_stage == ORDER_STAGES[2]:
-                    address = get_address_event(order, e.page)
-                    if address is None: order = None
+                    result = {"completed": False}
+                    get_address_event(order, e.page, result)
+                    if result.get("address") is None: order = None
 
 
                 if order is None:

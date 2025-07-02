@@ -100,19 +100,25 @@ async def send_order(buyer_to_post : tuple[int, list[Post]]):
 async def main():
     import argparse
     parser = argparse.ArgumentParser(description="CLI input handler")
-    parser.add_argument("process_name", type=str, help="Name of the process")
-    parser.add_argument("id", type=str, help="Pkl id")
+    parser.add_argument("process_name", type=str, help="Name of the process") # i thought the 
+    parser.add_argument('--user_id', type=int, 
+                    help='for pkl finding and locating chat with client')
+    parser.add_argument('--lookback', type=int, default=10, 
+                    help='How far back to parse')
     
+
+    # Parse the arguments
     args = parser.parse_args()
-    
     process_name = args.process_name
-    obj_id = args.id
 
     if process_name == 'active_orders':
         await active_posts()
-    
     elif process_name == 'bill_customer':
+        obj_id = args.user_id
         await send_order(load_pickle(obj_id))
+    elif process_name == 'scrape_chat':
+        print('97896057')
+        print('520156')
 
 
     
