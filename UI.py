@@ -5,7 +5,7 @@ import bill
 from time import sleep
 from bill import send_order
 from collections import defaultdict 
-from utils.collect_utils import load_whole_pickles_jar
+from utils.collect_utils import load_whole_pickles_jar, move_pickle
 import json
 import subprocess
 import asyncio
@@ -22,30 +22,67 @@ def clientise(order, stage):
     if stage == 1:
         print('attempt')
         subprocess.run(["python3", "bill.py", 'bill_customer', '--user_id', str(order[0])])
-    
-        
 
+
+class Transition:
+    def __init__(self, beginning, end):
+        self.__start__ = beginning #DO NOT EVER CHANGE THIS
+        self.end = end
+
+    def new_end(self, x : int):
+        if not isinstance(x, int) or x > 3 or x <= self.end: 
+            raise ValueError("The final state is not ok. Wow i should have implemented this in SQL.")
+        
+    def get_start_to_end(self) -> tuple:
+        return (self.__start__, self.end)
 
 # State: places the orders in each stage
 class OrderState:
     def __init__(self):
         self.orders = defaultdict(list)
-
+        self.changes = {} #k: root, v is a transition (see directly above. I wrote some error checking to cover my ass)
 
     def change_stage(self, order, fro, to):
         #change stage
         self.orders[fro].remove(order)
         self.orders[to].append(order)
 
-        #change data
+        #change file memory
+        id = order[0] # the tuple structure. YES i know this was a mistake
+        to = ORDER_STAGES.index(to)
+        if self.changes.get(id) is not None:
+            self.changes[id].new_end(to)
+        else:
+            self.changes[id] = Transition(ORDER_STAGES.index(fro), to) #this is not great
         
     async def load(self):
         #new_posts = await bill.active_posts()
         new_posts = load_whole_pickles_jar()
-        new_posts = new_posts[0]
-        for new in new_posts:
-            self.orders[ORDER_STAGES[0]].append(new)
+        for i, new_post_by_section in enumerate(new_posts):
+            for new in new_post_by_section:
+                self.orders[ORDER_STAGES[i]].append(new)
+
+        #TODO modify this for usage including the other files
+
     
+    async def save_update_pickles(self, e = None):
+        print('anything at all')
+        tasks = []
+        for id, transition in self.changes.items():
+            start, end = transition.get_start_to_end()
+            tasks.append(asyncio.create_task(move_pickle(id, to = end, fro = start)))
+        await asyncio.gather(*tasks)
+    
+
+    """def save_update_pickles(self):
+        print("here")
+        for id, transition in self.changes.items():
+            print(id)
+            start, end = transition.get_start_to_end()
+            move_pickle(id, to = end, fro = start) #move pickle must be syncm"""
+        
+
+
     @staticmethod
     def valid_move(order_id, from_stage, to_stage):
         fro = ORDER_STAGES.index(from_stage)
@@ -55,10 +92,6 @@ class OrderState:
             return False
         return not isinstance(order_id, int)
         
-        
-    
-
-
     def check_swap(self, order_id, from_stage, to_stage):
         #TODO what did they give you fucking hashmaps for. This is O(n). You deserve your unemployment.
         #print(self.orders[from_stage])
@@ -328,7 +361,7 @@ async def main(page: ft.Page):
     page.scroll = ft.ScrollMode.AUTO
     state = OrderState()
     page.window.full_screen = True
-    #await state.load()
+    await state.load()
 
     def refresh():
         # Rebuild the UI with the current state
@@ -354,7 +387,7 @@ async def main(page: ft.Page):
                 print(e.data)
 
                 order = state.check_swap(order_id, from_stage, to_stage)
-                #one last check, for the stage
+                #one last check, for the ninjavan stage
                 if to_stage == ORDER_STAGES[2]:
                     result = {"completed": False}
                     get_address_event(order, e.page, result)
@@ -449,6 +482,15 @@ async def main(page: ft.Page):
             expand=True,
         )
         page.controls.append(row_container)
+
+
+        def end_cycle(e : ft.KeyboardEvent):
+            if e.key != "Escape":
+                return
+            page.run_task(state.save_update_pickles)
+            page.window.close()
+
+        page.on_keyboard_event = end_cycle 
         page.update()
 
     refresh()

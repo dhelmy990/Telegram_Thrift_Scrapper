@@ -3,6 +3,8 @@ import pytz
 import dill as pickle
 import os
 from pathlib import Path
+import shutil
+
 
 
 
@@ -52,6 +54,47 @@ def pickle_processing(at):
     
     return total_path
 
+
+import os
+import shutil
+import asyncio
+
+async def move_pickle(id, to, fro):
+   # Step 1: Look for the file in the 'from' directory
+   from_path = f'jar/{fro}'
+   filename = f'{id}.pkl'  
+   source_file = os.path.join(from_path, filename)
+   
+   # Check if file exists
+   if not os.path.exists(source_file):
+       print(f"File {filename} not found in {from_path}")
+   
+   # Step 2: Handle based on fro value
+   if fro == 3:
+       # Delete the file if fro is 3
+       try:
+           os.remove(source_file)
+           print(f"Deleted {filename} from {from_path}")
+       except Exception as e:
+           print(f"Error deleting {filename}: {e}")
+   else:
+       # Move file to 'to' directory
+       to_path = f'jar/{to}'
+       
+       # Create destination directory if it doesn't exist
+       os.makedirs(to_path, exist_ok=True)
+       
+       destination_file = os.path.join(to_path, filename)
+       
+       try:
+           shutil.move(source_file, destination_file)
+           print(f"Moved {filename} from {from_path} to {to_path}")
+       except Exception as e:
+           print(f"Error moving {filename}: {e}")
+
+# Usage example:
+# await move_pickle(123, 1, 2)  # Move 123.pickle from jar/2 to jar/1
+# await move_pickle(456, 1, 3)  # Delete 456.pickle from jar/3
 
 async def save_pickle(items, at):
     total_path = pickle_processing(at)
