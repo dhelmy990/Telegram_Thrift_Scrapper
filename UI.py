@@ -9,6 +9,7 @@ from utils.collect_utils import load_whole_pickles_jar, move_pickle
 import json
 import subprocess
 import asyncio
+import sqlite3
 
 ORDER_STAGES = [
     "Active Bids",
@@ -23,6 +24,41 @@ def clientise(order, stage):
         print('attempt')
         subprocess.run(["python3", "bill.py", 'bill_customer', '--user_id', str(order[0])])
 
+
+class AddressInfo:
+    addresses = {}
+    sqlite3.connect('addresses.db').execute('CREATE TABLE IF NOT EXISTS addresses (id INTEGER PRIMARY KEY, address TEXT)')
+        
+    @staticmethod
+    def add_address(id, address:dict):
+        AddressInfo.addresses[id] = """
+            Name: {name}
+            Phone: {phone}
+            Address: {address}
+        """.format(name = address["name"], phone = address["phone"], address = address["address"])
+
+        
+    @staticmethod
+    def save_addresses():
+        for id, address in self.addresses.items():
+            sqlite3.connect('addresses.db').execute('INSERT INTO addresses (id, address) VALUES (?, ?)', (id, address))
+
+    @staticmethod
+    def load_addresses():
+        for id, address in sqlite3.connect('addresses.db').execute('SELECT * FROM addresses'):
+            AddressInfo.addresses[id] = address
+        
+    @staticmethod
+    def del_address(id):
+        del AddressInfo.addresses[id]
+        sqlite3.connect('addresses.db').execute('DELETE FROM addresses WHERE id = ?', (id,))
+
+    def get_address(self, id):
+        return self.addresses.get(id)
+    
+    
+    
+    
 
 class Transition:
     def __init__(self, beginning, end):
@@ -375,6 +411,7 @@ async def main(page: ft.Page):
     state = OrderState()
     page.window.full_screen = True
     await state.load()
+    AddressInfo.load_addresses()
 
     def refresh():
         # Rebuild the UI with the current state
@@ -408,6 +445,7 @@ async def main(page: ft.Page):
                     result = {"completed": False}
                     get_address_event(order, e.page, result)
                     if result.get("address") is None: order = None
+                    else: order.set_mailing(by = result)
 
                 if order is None:
                     return #for whatever reason, change nothing
