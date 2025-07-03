@@ -352,8 +352,9 @@ def get_address_event(order, page, result, lookback = 10):
     if error is None:
         print('free!')
         info = info.split('\n')
-        phone_f.value = info[0]
-        address_f.value  = info[1]
+        name_f.value  = info[0]
+        phone_f.value = info[1]
+        
 
     # Show the dialog
     if page:

@@ -71,8 +71,7 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
      
     id_purchases_dict = defaultdict(list) #k,v is tele_id,relevant_post. So are simply reformatting to go from the buyers to their post 
     
-    for post in post_dict.values():
-        print('--'*20)
+    for post in post_dict.values(): 
         try: 
             await post.gavel(channel_username, client)
         except(MsgIdInvalidError): #this is an edge case that occurs if the readme.md is not followed carefully and comments are turned off
@@ -87,6 +86,7 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
             
              
         if debug:
+            print('--'*20)
             print(type(post), post.best_buyer)
             print(post.get_text())
             print("Original Price:", post.get_original_price())
@@ -129,8 +129,21 @@ async def main():
         obj_id = args.user_id
         await send_order(load_pickle('1/' + str(obj_id)))
     elif process_name == 'scrape_chat':
-        print('97896057')
-        print('520156')
+        user = await client.get_entity(args.user_id)
+        username = user.username 
+        number = None
+        #address = None
+        async for message in client.iter_messages(args.user_id, limit = args.lookback, from_user = args.user_id):
+            msg = message.text
+            hp_no = r'\d{8}'
+            postal = r'\d{6}'
+            matches = re.findall(hp_no, msg)
+            if matches and number is None:
+                number = matches[0]
+            matches = re.findall(postal, msg)
+        print(username)
+        print(number)
+        #print(address)
 
 
     
@@ -146,14 +159,14 @@ async def active_posts():
     #deal with the old first
     tasks = []
     OLD_post_dict = await gather_posts() #no param means get all the old ones
-    buyer_to_post, have_bids, no_bids = await sieve_posts(OLD_post_dict, debug = True) #the latter two are lists of posts
+    buyer_to_post, have_bids, no_bids = await sieve_posts(OLD_post_dict, debug = False) #the latter two are lists of posts
     for post in have_bids:
         tasks.append(delete_pickle("0/" + str(post.get_root())))
     #remove those with bids
     
     #deal with the new now
     NEW_post_list = await gather_posts(since=last_used())
-    more_buyer_to_post, have_bids, no_bids_2 = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
+    more_buyer_to_post, have_bids, no_bids_2 = await sieve_posts(NEW_post_list, debug = False) #the latter two are lists of posts
     #add those with no bids. I called it no_bids_2 becasuse of the poster to seller UI problem.
 
     #well now we have bigger dict. Ahaha. Ha.
