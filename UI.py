@@ -68,7 +68,10 @@ class OrderState:
             new_posts = load_whole_pickles_jar()
         for i, new_post_by_section in enumerate(new_posts): #TODO this is broken if you start with 1, or if you use 2 instead. It places it in the wrong place. 
             #But im very very tired. And that's not a use case i ever really needed, more like one i wanted to offer
+            if i == 0:
+                self.orders[ORDER_STAGES[i]] = []
             for new in new_post_by_section:
+
                 self.orders[ORDER_STAGES[i]].append(new)
 
         #TODO modify this for usage including the other files
@@ -459,7 +462,7 @@ async def main(page: ft.Page):
             info, error = active_orders.communicate()
             if error is None:
                 async def load_with_callback():
-                    await state.load()
+                    await state.load(check_active_only=True)
                     when_im_done()
                 
                 e.page.run_task(load_with_callback)

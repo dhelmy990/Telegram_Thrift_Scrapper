@@ -103,6 +103,15 @@ async def save_pickle(items, at):
 
     #god i hope this works
 
+async def delete_pickle(at):
+    total_path = pickle_processing(at)
+    try:
+        os.remove(total_path)
+    except FileNotFoundError:
+        print(total_path)
+
+
+
 
 #not in use till i move beyond lazy loading
 def load_pickle(at):

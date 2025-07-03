@@ -3,7 +3,7 @@ from config.secrets import t_api, t_hash, channel_username, mailing_cost, test_i
 from collections import defaultdict
 from telethon.tl.types import InputMessagesFilterPhotos
 from telethon.errors.rpcerrorlist import MsgIdInvalidError
-from utils.collect_utils import last_used, save_time, iter_specific_messages, dt_min, save_pickle, load_pickle
+from utils.collect_utils import last_used, save_time, iter_specific_messages, dt_min, save_pickle, load_pickle, load_whole_pickles_jar, delete_pickle
 from utils.Auction import *
 import db
 import json
@@ -19,12 +19,24 @@ async def gather_posts(since = None) -> dict[int, Post]:
     """
 
     if since is not None:
-        since = since - timedelta(hours=120) #change this to the time you want to gather auctions from
+        since = last_used()#change this to the time you want to gather auctions from
         iterator = client.iter_messages(channel_username, filter = InputMessagesFilterPhotos())
     else:
         since = dt_min()
-        db.init_undone_bid()
-        iterator = iter_specific_messages(client, channel_username, message_ids = db.get_all_ORDERED()) 
+        all_pkls = load_whole_pickles_jar('jar', 0) #this returns a list of lists. Even in the singleton case
+        all_pkls = all_pkls[0]
+
+        roots = []
+        
+        for pkl in all_pkls:
+            if pkl[0] is None:
+                roots.append(pkl[1].get_root())
+            else:
+                for post in pkl[1]:
+                    roots.append(post.get_root())
+                    
+
+        iterator = iter_specific_messages(client, channel_username, message_ids = roots) 
 
     posts = {} 
     cluster = [] #of working images
@@ -115,7 +127,7 @@ async def main():
         await active_posts()
     elif process_name == 'bill_customer':
         obj_id = args.user_id
-        await send_order(load_pickle('0/' + str(obj_id)))
+        await send_order(load_pickle('1/' + str(obj_id)))
     elif process_name == 'scrape_chat':
         print('97896057')
         print('520156')
@@ -132,20 +144,25 @@ async def main():
 
 async def active_posts():
     #deal with the old first
+    tasks = []
     OLD_post_dict = await gather_posts() #no param means get all the old ones
-    buyer_to_post , have_bids, no_bids = await sieve_posts(OLD_post_dict, debug = True) #the latter two are lists of posts
+    buyer_to_post, have_bids, no_bids = await sieve_posts(OLD_post_dict, debug = True) #the latter two are lists of posts
+    for post in have_bids:
+        tasks.append(delete_pickle("0/" + str(post.get_root())))
     #remove those with bids
     
     #deal with the new now
     NEW_post_list = await gather_posts(since=last_used())
-    more_buyer_to_post , have_bids, no_bids_2 = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
+    more_buyer_to_post, have_bids, no_bids_2 = await sieve_posts(NEW_post_list, debug = True) #the latter two are lists of posts
     #add those with no bids. I called it no_bids_2 becasuse of the poster to seller UI problem.
 
     #well now we have bigger dict. Ahaha. Ha.
+    union_keys = set(buyer_to_post.keys()) & set(more_buyer_to_post.keys())
+    for key in union_keys:
+        buyer_to_post[key].append(more_buyer_to_post.pop(key))
     buyer_to_post.update(more_buyer_to_post)
     no_bids += no_bids_2
     
-
     #Cache all images. This is a bad solution.
 
     """
@@ -154,8 +171,7 @@ async def active_posts():
                 debug_pickle(post) 
         sys.exit(0)
     """
-    
-    tasks = []
+
     for post in no_bids:
         tasks.append(post.fletify_image())
         tasks.append(save_pickle((None, post), "0/" + str(post.get_root())))

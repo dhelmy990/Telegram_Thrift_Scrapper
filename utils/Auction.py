@@ -232,7 +232,7 @@ class Auction(Post):
             offer = self.extract_offer(reply.text)
             if offer is None:
                 continue
-            if offer > best_bid:
+            if offer >= self.sb and offer > best_bid:
                 best_bid = offer
                 best_bidder = reply.sender_id
 
