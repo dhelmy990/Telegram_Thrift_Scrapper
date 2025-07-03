@@ -50,15 +50,24 @@ class OrderState:
         #change file memory
         id = order[0] # the tuple structure. YES i know this was a mistake
         to = ORDER_STAGES.index(to)
-        if self.changes.get(id) is not None:
+        if to == 1: #GET COMPLETE RID of anything from the first stage. Not a change I want to record.
+            print(id, to)
+            subprocess.Popen(['python3', 'utils/collect_utils.py', 'move_update', str(id), str(to)])
+        elif self.changes.get(id) is not None:
             self.changes[id].new_end(to)
         else:
             self.changes[id] = Transition(ORDER_STAGES.index(fro), to) #this is not great
+
         
-    async def load(self):
+        
+    async def load(self, check_active_only = False):
         #new_posts = await bill.active_posts()
-        new_posts = load_whole_pickles_jar()
-        for i, new_post_by_section in enumerate(new_posts):
+        if check_active_only:
+            new_posts = load_whole_pickles_jar('jar', 0)
+        else:
+            new_posts = load_whole_pickles_jar()
+        for i, new_post_by_section in enumerate(new_posts): #TODO this is broken if you start with 1, or if you use 2 instead. It places it in the wrong place. 
+            #But im very very tired. And that's not a use case i ever really needed, more like one i wanted to offer
             for new in new_post_by_section:
                 self.orders[ORDER_STAGES[i]].append(new)
 
@@ -119,11 +128,7 @@ class PostDraggableFactory():
             return UnbiddedDraggable(post_items[1])
         else:
             return BiddedDraggable(post_items, stage) 
-        
-        
-        
-class PostDraggableAborter():
-    pass
+    
 
 def UnbiddedDraggable(post: Post, on_drag_start=None, **kwargs):
     # Use the same card layout as before, but with a header-only draggable overlay
@@ -239,8 +244,11 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
                     bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.BLUE),
                     margin=ft.margin.only(top=10),
                 )
-            ], spacing=5),
+            ], spacing=5,
+            auto_scroll = False,
+            scroll = ft.ScrollMode.ALWAYS),
             padding=10,
+            expand = True
         )
 
     drag_target = ft.DragTarget(
@@ -259,6 +267,7 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
         border_radius=8,
         padding=5,
         bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.BLUE),
+        expand = True
     )
     # Add Update button for Active Bids
     children = [header, drag_target_container]
@@ -267,7 +276,7 @@ def create_column(stage, orders : list[tuple], on_accept, on_update=None):
             ft.ElevatedButton("Update!", on_click=on_update, bgcolor=ft.Colors.PRIMARY)
         )
     return ft.Container(
-        content=ft.Column(children, spacing=15),
+        content=ft.Column(children, spacing=15, expand = True),
         border=ft.border.all(2, ft.Colors.OUTLINE),
         border_radius=10,
         padding=15,
@@ -365,6 +374,9 @@ async def main(page: ft.Page):
 
     def refresh():
         # Rebuild the UI with the current state
+        for order in state.orders[ORDER_STAGES[0]]:
+            print(order)
+        print()
         page.controls.clear()
         page.controls.append(
             ft.Container(
@@ -489,9 +501,16 @@ async def main(page: ft.Page):
                 return
             page.run_task(state.save_update_pickles)
             page.window.close()
+        
+        def page_resize(e):
+            refresh()
+
+        page.on_resized = page_resize
 
         page.on_keyboard_event = end_cycle 
         page.update()
+
+
 
     refresh()
 

@@ -110,14 +110,17 @@ def load_pickle(at):
     with open(total_path, 'rb') as f:
         return pickle.load(f)
     
-def load_whole_pickles_jar(at = 'jar') -> list[list]:
+def load_whole_pickles_jar(at = 'jar', *target) -> list[list]:
     """
         LIST OF LIST OF OBJECTS
         INDEX CORRESPONDS WITH COLUMN
         DONT BE STUPID
     """
     all_pickles = []
-    for i in range(3):
+    if not target:
+        target = range(3) #then all of them
+    for i in target:
+        if i > 2 or i < 0: continue #i dont care about the invalid
         path = at + '/' + str(i)
         os.makedirs(path, exist_ok=True)
         all_pickles.append(load_pickles_from(path))
@@ -142,3 +145,16 @@ def debug_pickle(obj):
         print(f"Pickle error: {e}")
         print(f"Object type: {type(obj)}")
         print(f"Object attributes: {dir(obj)}")
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("process_name", type=str, help="Name of the process") # i thought the 
+    parser.add_argument('user_id', type=int, 
+                    help='pkl id')
+    parser.add_argument('to', type = int)
+    args = parser.parse_args()
+    if args.process_name == 'move_update':
+        asyncio.run(move_pickle(args.user_id, args.to, args.to - 1))
+
+
