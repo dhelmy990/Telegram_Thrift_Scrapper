@@ -19,7 +19,7 @@ async def gather_posts(since = None) -> dict[int, Post]:
     """
 
     if since is not None:
-        since = last_used()#change this to the time you want to gather auctions from
+        since = last_used() #- timedelta(hours = 264). #uncomment to modify the time you want to gather auctions from
         iterator = client.iter_messages(channel_username, filter = InputMessagesFilterPhotos())
     else:
         since = dt_min()
@@ -100,7 +100,7 @@ async def sieve_posts(post_dict: dict[int, Post], debug = False):
 
 async def send_order(buyer_to_post : tuple[int, list[Post]]):
     await client.start()
-    id = test_id
+    #id = test_id
     working_total = mailing_cost
 
     for post in buyer_to_post[1]:

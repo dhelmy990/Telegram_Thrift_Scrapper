@@ -1,5 +1,6 @@
 from .Auction import Post
 import flet as ft
+from .address import AddressInfo
 
 def subcard(post : Post):
     image_widget = ft.Image(
@@ -55,3 +56,18 @@ def card(subcards, ready = False, username = None):
             elevation=2,
         )
     return card_content
+
+def address_display(e):
+    #to be used for on_long_press
+    page = e.page
+    print(e.target)
+    print(dir(e))
+    e = page.get_control(e.target)
+    order_id = e.data['teleid']
+    text = AddressInfo.get_address(order_id)
+    e.page.open(
+        ft.AlertDialog(
+        modal=False,
+        content=ft.Text(text)
+    )
+    )

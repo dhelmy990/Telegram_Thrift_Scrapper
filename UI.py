@@ -1,6 +1,6 @@
 import flet as ft
 from utils.Auction import *
-from utils.UIutils import subcard, card
+from utils.UIutils import subcard, card, address_display
 import bill
 from time import sleep
 from bill import send_order
@@ -10,6 +10,7 @@ import json
 import subprocess
 import asyncio
 import sqlite3
+from utils.address import AddressInfo
 
 ORDER_STAGES = [
     "Active Bids",
@@ -23,40 +24,6 @@ def clientise(order, stage):
     if stage == 1:
         print('attempt')
         subprocess.run(["python3", "bill.py", 'bill_customer', '--user_id', str(order[0])])
-
-
-class AddressInfo:
-    addresses = {}
-    sqlite3.connect('addresses.db').execute('CREATE TABLE IF NOT EXISTS addresses (id INTEGER PRIMARY KEY, address TEXT)')
-        
-    @staticmethod
-    def add_address(id, address:dict):
-        AddressInfo.addresses[id] = """
-            Name: {name}
-            Phone: {phone}
-            Address: {address}
-        """.format(name = address["name"], phone = address["phone"], address = address["address"])
-
-        
-    @staticmethod
-    def save_addresses():
-        for id, address in self.addresses.items():
-            sqlite3.connect('addresses.db').execute('INSERT INTO addresses (id, address) VALUES (?, ?)', (id, address))
-
-    @staticmethod
-    def load_addresses():
-        for id, address in sqlite3.connect('addresses.db').execute('SELECT * FROM addresses'):
-            AddressInfo.addresses[id] = address
-        
-    @staticmethod
-    def del_address(id):
-        del AddressInfo.addresses[id]
-        sqlite3.connect('addresses.db').execute('DELETE FROM addresses WHERE id = ?', (id,))
-
-    def get_address(self, id):
-        return self.addresses.get(id)
-    
-    
     
     
 
@@ -213,7 +180,7 @@ def BiddedDraggable(id_to_post, stage, on_drag_start=None, **kwargs):
     # Draggable overlay only on header
     overlay_draggable = ft.Draggable(
         group="orders",
-        data = {"id": buyer_username, "from_stage": stage},
+        data = {"id": buyer_username, "from_stage": stage, "teleid" : id_to_post[0]},
         content=ft.Container(
             width=card_width,
             height=header_height,
@@ -227,8 +194,10 @@ def BiddedDraggable(id_to_post, stage, on_drag_start=None, **kwargs):
             border_radius=8,
             alignment=ft.alignment.center,
         ),
+        on_drag_complete = address_display,
         on_drag_start=on_drag_start,
         **kwargs
+        
     )
 
     return ft.Stack(
@@ -237,6 +206,7 @@ def BiddedDraggable(id_to_post, stage, on_drag_start=None, **kwargs):
             overlay_draggable,  # This will be at the top of the stack, aligned with the header
         ],
         width=card_width,
+
         # No height constraint!
     )
 
@@ -409,9 +379,10 @@ async def main(page: ft.Page):
     page.bgcolor = ft.Colors.SURFACE
     page.scroll = ft.ScrollMode.AUTO
     state = OrderState()
+    AddressInfo.load_addresses()
     page.window.full_screen = True
     await state.load()
-    AddressInfo.load_addresses()
+    
 
     def refresh():
         # Rebuild the UI with the current state
@@ -440,15 +411,18 @@ async def main(page: ft.Page):
                 print(e.data)
 
                 order = state.check_swap(order_id, from_stage, to_stage)
+                if order is None:
+                    return #for whatever reason, change nothing
+
+
                 #one last check, for the ninjavan stage
                 if to_stage == ORDER_STAGES[2]:
                     result = {"completed": False}
                     get_address_event(order, e.page, result)
                     if result.get("address") is None: order = None
-                    else: order.set_mailing(by = result)
+                    else: AddressInfo.add_address(data["teleid"], result)
 
-                if order is None:
-                    return #for whatever reason, change nothing
+                
                 
                 state.change_stage(order, from_stage, to_stage)
                 clientise(order, ORDER_STAGES.index(to_stage))
@@ -542,6 +516,7 @@ async def main(page: ft.Page):
             if e.key != "Escape":
                 return
             page.run_task(state.save_update_pickles)
+            AddressInfo.save_addresses()
             page.window.close()
         
         def page_resize(e):
